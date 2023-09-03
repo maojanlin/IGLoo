@@ -1,6 +1,7 @@
 import argparse
 import pysam
 import subprocess
+import sys
 
 
 def print_combination(fn_bed):
@@ -81,7 +82,7 @@ def get_stop_from_cigar(
     return read_stop
 
 
-def get_gene_region(list_gene_name, list_position):
+def get_gene_region(list_gene_name, list_gene_position):
     """
     each V, D, J return the maximum region expanded by the genes
     """
@@ -180,8 +181,9 @@ def find_overlap(fn_bam, list_gene_name, list_gene_position, ref_name, fn_out, f
                         VD_gene.append(closest_VD)
                         # TODO maybe add an option
                         if (min_dist_J > 0) or (min_dist_VD < 0) or abs(min_dist_J) < -500 or abs(min_dist_VD) > 500:
-                            print(seq_name, "-----------------------------", J_gene, min_dist_J)
-                            print(seq_name, '+++++++++++++++++++++++++++++', closest_VD, min_dist_VD)
+                            if debug:
+                                print(seq_name, "-----------------------------", J_gene, min_dist_J)
+                                print(seq_name, '+++++++++++++++++++++++++++++', closest_VD, min_dist_VD)
                         if (min_dist_VD < -40) or (min_dist_VD) > 40:
                             dict_bad_reads[seq_name] = 1
                             f_alt_ref.write(fn_bam.split('.')[0] + "," + seq_name + ',' + closest_VD + ',' + str(min_dist_VD) + "\n")
@@ -197,8 +199,9 @@ def find_overlap(fn_bam, list_gene_name, list_gene_position, ref_name, fn_out, f
                         C_gene.append(closest_VD)
                         # TODO maybe add an option
                         if (min_dist_J > 0) or (min_dist_VD < 0) or abs(min_dist_J) < -500 or abs(min_dist_VD) > 500:
-                            print(seq_name, "---------", J_gene, min_dist_J)
-                            print(seq_name, '+++++++++', closest_VD, min_dist_VD)
+                            if debug:
+                                print(seq_name, "---------", J_gene, min_dist_J)
+                                print(seq_name, '+++++++++', closest_VD, min_dist_VD)
                         #if (min_dist_VD < 0) or (min_dist_VD) > 4000:
                         #    f_alt_ref.write(fn_bam.split('.')[0] + "," + seq_name + ',' + closest_VD + ',' + str(min_dist_VD) + "\n")
                         if debug:
@@ -261,18 +264,13 @@ def find_overlap(fn_bam, list_gene_name, list_gene_position, ref_name, fn_out, f
     print("Average Read Depth between J-D gap:", sum_read_depth/ (JD_end - JD_start))
 
 
-
-
-
-
-
-if __name__ == "__main__":
+def main(arguments=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('-bed', '--annotation_bed', help='the IGH annotation of the reference genome.')
     parser.add_argument('-bam', '--align_bam',      help='the alignment bam file of the IG reads to the reference genome.')
     parser.add_argument('-name', '--print_name_flag', action='store_true', help='print the seq name supporting a recombination type.')
     parser.add_argument('-out',  '--output_file', help='the output report path')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
     
     fn_bed = args.annotation_bed
     fn_bam = args.align_bam
@@ -281,4 +279,9 @@ if __name__ == "__main__":
 
     list_gene_position, list_gene_name, ref_name = read_bed(fn_bed)
     find_overlap(fn_bam, list_gene_name, list_gene_position, ref_name, fn_out, flag_read_name, debug=False)
+
+
+
+if __name__ == "__main__":
+    main()
 
