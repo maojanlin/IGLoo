@@ -1,5 +1,6 @@
 import argparse
 import pysam
+import numpy as np
 from analyze_recombine import read_bed, get_gene_region
 
 
@@ -41,20 +42,113 @@ def cigar_read_len(cigar_string):
     return bg_SH, read_len, ed_SH
 
 
+def seperate_string_number(string):
+    """borrow from Bryo Much and Nikaido"""
+    previous_character = string[0]
+    groups = []
+    newword = string[0]
+    for x, i in enumerate(string[1:]):
+        if i.isalpha() and previous_character.isalpha():
+            newword += i
+        elif i.isnumeric() and previous_character.isnumeric():
+            newword += i
+        else:
+            groups.append(newword)
+            newword = i
+        previous_character = i
+        if x == len(string) - 2:
+            groups.append(newword)
+            newword = ''
+    return groups
+
+
+def count_split_site(MD_tag, len_ref):
+    list_diff = np.zeros(len_ref)
+    list_idx = 0
+    group_element = seperate_string_number(MD_tag)
+    idx = 0
+    while idx < len(group_element):
+        ele = group_element[idx]
+        if ele == '^': # deletion
+            deletion = group_element[idx+1]
+            idx += 1
+            list_diff[list_idx:list_idx+len(deletion)] += 0.1
+            list_idx += len(deletion)
+        elif ele.isnumeric(): 
+            list_idx += int(ele)
+        else:
+            list_diff[list_idx] += 1
+            list_idx += 1
+        idx += 1
+
+    max_span = [0,0]
+    max_len  = 0
+    current_head = 0
+    current_len  = 0
+    first_block = sum(list_diff[:100])
+    list_window = [first_block]
+    for idx in range(1, len(list_diff)-100):
+        list_window.append(first_block)
+        if first_block < 8:
+            if current_len == 0:
+                current_head = idx
+            current_len += 1
+        else:
+            if current_len > max_len:
+                max_len = current_len
+                max_span = [current_head, current_head + current_len]
+            current_len = 0
+        first_block += list_diff[idx+100]
+        first_block -= list_diff[idx]
+    if current_len > max_len:
+        max_len = current_len
+        max_span = [current_head, current_head + current_len]
+
+    #print(max_span[0]+60, max_span[1]+40)
+    if max_span[0] + 60 >= max_span[1]+40:
+        print("WARNING! spanning too short!")
+    return max_span[0]+60, max_span[1]+40
+            
+
+
+#def clip_constant_split()
+
+
+
+
+
 def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
                fn_fasta, fn_out, set_target_read):
     # standard read depleting
     fo = open(fn_out, 'w')
     fi = open(fn_fasta, 'r')
 
+    
+    # read clipping from bam information
+    dict_gene_region = get_gene_region(list_gene_name, list_gene_position)
+    J_region = dict_gene_region["J"]
+    D_region = dict_gene_region["D"]
+    
+    # discard constant splitting reads
+    set_constant_split = set()
+    for segment in f_bam.fetch(ref_name, J_region[0]-12500, J_region[0]):
+        seq_name  = segment.query_name
+        if seq_name in set_target_read:
+            continue
+        if segment.has_tag("SA"):
+            query_seq    = segment.query_alignment_sequence
+            set_constant_split.add(seq_name)
+            fo.write('>' + seq_name + '/1\n')
+            fo.write(query_seq  + '\n')
+    
+    ###### Adding the normal reads ######
     set_target_read.add("")
     dict_target_read = {}
-    
     name = ""
     seq = ""
     for line in fi:
         if line[0] == '>':
-            if name not in set_target_read:
+            if name not in set_target_read and name not in set_constant_split:
                 fo.write('>' + name + '\n')
                 fo.write(seq + '\n')
             else:
@@ -64,15 +158,12 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
         else:
             seq += line.strip()
     # last sequence
-    if name not in set_target_read:
+    if name not in set_target_read and name not in set_constant_split:
         fo.write('>' + name + '\n')
         fo.write(seq + '\n')
     fi.close()
+    ###### Adding the normal reads ######
 
-    # read clipping from bam information
-    dict_gene_region = get_gene_region(list_gene_name, list_gene_position)
-    J_region = dict_gene_region["J"]
-    D_region = dict_gene_region["D"]
     
     for segment in f_bam.fetch(ref_name, J_region[0], J_region[1]):
         seq_name  = segment.query_name
@@ -84,6 +175,34 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
         cigar_string = segment.cigarstring
         cigar_states = segment.get_cigar_stats()
         flag_forward = not segment.is_reverse # forward: True, reverse: False
+        MD_tag       = segment.get_tag("MD")
+        query_seq    = segment.query_alignment_sequence
+        #print(seq_name, segment.get_aligned_pairs()[-1], len(segment.query_alignment_sequence))
+
+        len_clip_L, len_clip_R = count_split_site(MD_tag, len(segment.get_reference_sequence()))
+        len_clip_L += start_pos -1
+        len_clip_R += start_pos -1
+        flag_L = False
+        split_L = 0
+        split_R = len(query_seq) 
+        for pair_info in segment.get_aligned_pairs():
+            if len_clip_L == pair_info[1]:
+                flag_L = True
+            if len_clip_R == pair_info[1]:
+                if pair_info[0] == None:
+                    split_R = last_num
+                else:
+                    split_R = pair_info[0]
+                break
+            if pair_info[0] != None:
+                if flag_L:
+                    split_L = pair_info[0]
+                    flag_L = False
+                last_num = pair_info[0]
+
+        fo.write(">" + seq_name + '/1\n')
+        fo.write(query_seq[split_L:split_R] + '\n')
+        
         
         # list information of the supplementary alignments
         list_alignment = segment.get_tag("SA").split(";")[:-1]
@@ -114,6 +233,8 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
             for SA_info in list_alignment:
                 print("=====", SA_info)
             continue"""
+
+
         
         
         seq_forward = dict_target_read[seq_name]
@@ -151,14 +272,15 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
                 fo.write(">" + seq_name + '/0\n')
                 fo.write(target_seq[:bg_SH] + '\n')
         if ed_SH != 0: # there are following sequence
-            fo.write(">" + seq_name + '/1\n')
-            fo.write(target_seq[bg_SH+const_clip:-(ed_SH+60)] + '\n')
+            #fo.write(">" + seq_name + '/1\n')
+            #fo.write(target_seq[bg_SH+const_clip:-(ed_SH+60)] + '\n')
             if ed_SH > 300:
                 fo.write(">" + seq_name + '/2\n')
                 fo.write(target_seq[-(ed_SH-300):] + '\n')
         else:
-            fo.write(">" + seq_name + '/1\n')
-            fo.write(target_seq[bg_SH+const_clip:] + '\n')
+            pass
+            #fo.write(">" + seq_name + '/1\n')
+            #fo.write(target_seq[bg_SH+const_clip:] + '\n')
 
         """
         clip_dist = 0
