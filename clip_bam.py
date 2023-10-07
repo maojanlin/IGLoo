@@ -89,7 +89,7 @@ def count_split_site(MD_tag, len_ref):
     list_window = [first_block]
     for idx in range(1, len(list_diff)-100):
         list_window.append(first_block)
-        if first_block < 8:
+        if first_block < 11:
             if current_len == 0:
                 current_head = idx
             current_len += 1
@@ -111,13 +111,11 @@ def count_split_site(MD_tag, len_ref):
             
 
 
-#def clip_constant_split()
 
 
 
 
-
-def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
+def clip_fasta(fn_bam, list_gene_position, list_gene_name, ref_name, \
                fn_fasta, fn_out, set_target_read):
     # standard read depleting
     fo = open(fn_out, 'w')
@@ -129,17 +127,48 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
     J_region = dict_gene_region["J"]
     D_region = dict_gene_region["D"]
     
-    # discard constant splitting reads
-    set_constant_split = set()
+    """
+    num_split = 0; num_no_split = 0
+    f_bam = pysam.AlignmentFile(fn_bam)
     for segment in f_bam.fetch(ref_name, J_region[0]-12500, J_region[0]):
         seq_name  = segment.query_name
         if seq_name in set_target_read:
             continue
         if segment.has_tag("SA"):
-            query_seq    = segment.query_alignment_sequence
-            set_constant_split.add(seq_name)
-            fo.write('>' + seq_name + '/1\n')
-            fo.write(query_seq  + '\n')
+            num_split += 1
+        else:
+            num_no_split +=1
+    print(num_split, num_no_split)
+
+    # discard constant splitting reads if there are non-spliting reads
+    """
+    set_constant_split = set()
+    """
+    if num_no_split > 5:
+        f_bam = pysam.AlignmentFile(fn_bam)
+        for segment in f_bam.fetch(ref_name, J_region[0]-12500, J_region[0]):
+            seq_name  = segment.query_name
+            if seq_name in set_target_read:
+                continue
+            if segment.has_tag("SA"):
+                #print("###", seq_name, "split")
+                query_seq    = segment.query_alignment_sequence
+                set_constant_split.add(seq_name)
+                fo.write('>' + seq_name + '/1\n')
+                fo.write(query_seq  + '\n')
+                
+                original_seq = segment.query_sequence
+                if len(original_seq) > len(query_seq):
+                    fo.write('>' + seq_name + '/2\n')
+                    fo.write(original_seq[original_seq.find(query_seq)+len(query_seq):] + '\n')
+                #if flag_forward:
+                #    print("###", seq_name, query_seq in original_seq, original_seq.find(query_seq), len(query_seq), len(original_seq))
+                #else:
+                #    print("RRR", seq_name, query_seq in original_seq, original_seq.find(query_seq), len(query_seq), len(original_seq))
+            else:
+                pass
+                #print("###", seq_name, "NO")
+            """
     
     ###### Adding the normal reads ######
     set_target_read.add("")
@@ -164,7 +193,7 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
     fi.close()
     ###### Adding the normal reads ######
 
-    
+    f_bam = pysam.AlignmentFile(fn_bam)
     for segment in f_bam.fetch(ref_name, J_region[0], J_region[1]):
         seq_name  = segment.query_name
         if seq_name not in set_target_read:
@@ -179,6 +208,7 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
         query_seq    = segment.query_alignment_sequence
         #print(seq_name, segment.get_aligned_pairs()[-1], len(segment.query_alignment_sequence))
 
+        """
         len_clip_L, len_clip_R = count_split_site(MD_tag, len(segment.get_reference_sequence()))
         len_clip_L += start_pos -1
         len_clip_R += start_pos -1
@@ -202,7 +232,7 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
 
         fo.write(">" + seq_name + '/1\n')
         fo.write(query_seq[split_L:split_R] + '\n')
-        
+        """
         
         # list information of the supplementary alignments
         list_alignment = segment.get_tag("SA").split(";")[:-1]
@@ -272,15 +302,15 @@ def clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, \
                 fo.write(">" + seq_name + '/0\n')
                 fo.write(target_seq[:bg_SH] + '\n')
         if ed_SH != 0: # there are following sequence
-            #fo.write(">" + seq_name + '/1\n')
-            #fo.write(target_seq[bg_SH+const_clip:-(ed_SH+60)] + '\n')
+            fo.write(">" + seq_name + '/1\n')
+            fo.write(target_seq[bg_SH+const_clip:-(ed_SH+60)] + '\n')
             if ed_SH > 300:
                 fo.write(">" + seq_name + '/2\n')
                 fo.write(target_seq[-(ed_SH-300):] + '\n')
         else:
             pass
-            #fo.write(">" + seq_name + '/1\n')
-            #fo.write(target_seq[bg_SH+const_clip:] + '\n')
+            fo.write(">" + seq_name + '/1\n')
+            fo.write(target_seq[bg_SH+const_clip:] + '\n')
 
         """
         clip_dist = 0
@@ -328,7 +358,6 @@ if __name__ == "__main__":
     
     list_gene_position, list_gene_name, ref_name = read_bed(fn_bed)
 
-    f_bam = pysam.AlignmentFile(fn_bam)
     set_target_read = read_list(fn_list)
-    clip_fasta(f_bam, list_gene_position, list_gene_name, ref_name, fn_fasta, fn_out, set_target_read)
+    clip_fasta(fn_bam, list_gene_position, list_gene_name, ref_name, fn_fasta, fn_out, set_target_read)
 
