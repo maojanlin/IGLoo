@@ -4,13 +4,32 @@ import os
 
 def solve_duplicate(list_gene_name, prev_gene, post_gene):
     set_neighbor = set(prev_gene).union(set(post_gene))
-    if list_gene_name == ["IGHD5-18","IGHD5-5"]:
+    if list_gene_name == ["IGHD5-18","IGHD5-5"]: #IGHD5-18, IGHD5-5
         if "IGHD6-6" in set_neighbor or 'IGHD4-4' in set_neighbor:
             append_element = [(1, "IGHD5-5")]
         elif "IGHD6-19" in set_neighbor or 'IGHD4-17' in set_neighbor:
             append_element = [(1, "IGHD5-18")]
         else:
             append_element = [(1/2, "IGHD5-18"), (1/2, "IGHD5-5")]
+    elif list_gene_name == ["IGHV4-30-4","IGHV4-31"]: # IGHV4-30-4, IGHV4-31
+        if "IGHV3-33" in set_neighbor and "IGHV3-30-5" in set_neighbor:
+            append_element = [(1, "IGHV4-31")]
+        elif "IGHV3-33" in set_neighbor and "IGHV3-30-3" in set_neighbor:
+            append_element = [(1, "IGHV4-30-4")]
+        elif "IGHV3-30-5" in set_neighbor and "IGHV3-30-3" in set_neighbor:
+            append_element = [(1, "IGHV4-30-4")]
+        else:
+            append_element = [(1/2, "IGHD4-30-4"), (1/2, "IGHD4-31")]
+    elif list_gene_name == ["IGHV3-30", "IGHV3-30-5"]: # IGHV3-30, IGHV3-30-5
+        if "IGHV4-28" in set_neighbor:
+            append_element = [(1, "IGHV3-30")]
+        else:
+            append_element = [(1, "IGHV3-30-5")]
+    elif list_gene_name == ["IGHV3-30", "IGHV3-30-3"]: # IGHV3-30, IGHV3-30-3
+        if "IGHV4-28" in set_neighbor:
+            append_element = [(1, "IGHV3-30")]
+        else:
+            append_element = [(1, "IGHV3-30-3")]
     else:
         append_element = [(1/len(list_gene_name), name) for name in list_gene_name]
     return append_element
@@ -119,12 +138,9 @@ def curate_duplicate(dict_genes):
         if number == 1:
             dict_genes[dup_gene] = 1
             dict_genes[dup_gene+"D"] = 0
-        elif number == 2:
-            dict_genes[dup_gene] = 1
-            dict_genes[dup_gene+"D"] = 1
         elif number >= 2:
-            dict_genes[dup_gene] = number - 1
-            dict_genes[dup_gene+"D"] = 1
+            dict_genes[dup_gene] = number/2
+            dict_genes[dup_gene+"D"] = number/2
 
     return dict_duplicate
 
