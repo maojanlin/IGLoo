@@ -151,10 +151,11 @@ def check_recomb_pair(pair_0, pair_1, list_gene_position, list_gene_name):
     if abs(min_dist_0) < 50:
         if abs(min_dist_1) < 50:
             return True, gene_0, gene_1, min_dist_0, min_dist_1
-        elif gene_1[3] == "V" and abs(min_dist_1-75) < 125:
+        elif gene_1[3] == "V" and abs(min_dist_1) < 200:
             return True, gene_0, gene_1, min_dist_0, min_dist_1
     return False, gene_0, gene_1, min_dist_0, min_dist_1
-    
+
+
 
 def call_recomb_with_cigar(cigar_tuples, start_pos, list_gene_position, list_gene_name):
     list_recomb_candidate = []
@@ -254,12 +255,10 @@ def seq_between_clips(cigar_tuples, seq_len, flag_forward):
     else:
         pos_end = seq_len
 
-    print('----------------', len(cigar_tuples), flag_forward)
+    #print('----------------', len(cigar_tuples), flag_forward)
     if flag_forward:
-        print(pos_start, pos_end)
         return pos_start, pos_end
     else:
-        print(seq_len-pos_start, seq_len-pos_end)
         return seq_len-pos_start, seq_len-pos_end
 
 
@@ -285,8 +284,8 @@ def split_with_cigar(list_target_idx, cigar_tuples, sequence):
             print("WARNING!", seq_name, "with unsupported cigar string")
     split_reads = []
     list_position = [0] + list_position + [-1]
-    print(list_target_idx[-1])
-    print(list_position)
+    #print(list_target_idx[-1])
+    #print(list_position)
     for idx in range(len(list_position) - 1):
         split_reads.append(sequence[list_position[idx]:list_position[idx+1]])
     return split_reads
@@ -325,7 +324,16 @@ def call_result_to_read_info(call_result, cigar_tuples, query_seq, gene_head, ge
 
 
 
-def find_recombination(fn_bam, fn_bed, dict_read):
+def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
+    """
+    dict_read_info = {}:
+        - key: seq_name
+        - value : ["type", [(gene0,gene1),(gene2,gene3),...], [(pos0,pos1),(pos2,pos3),...], [seq1,seq2,...]]
+    
+    type: "fir", "partial_fit", "non-fit", "Unrecombined", "D_read", "J_read"
+    
+    pos0, pos1 are the relative position on the whole read sequence
+    """
     list_gene_position, list_gene_name, ref_name = read_bed(fn_bed)
     dict_gene_region = get_gene_region(list_gene_name, list_gene_position)
 
@@ -334,18 +342,14 @@ def find_recombination(fn_bam, fn_bed, dict_read):
     V_region = dict_gene_region["V"]
 
     dict_read_info = {}
-    """
-    dict_VDJ_pairs = {tuple('Unrecombined'): []}
-    dict_bad_reads = {}
-    set_processed = set()
-    """
-
+    
     f_bam = pysam.AlignmentFile(fn_bam, "rb")
+    # Iterate from first J gene to first V gene
     for segment in f_bam.fetch(ref_name, J_region[0], V_region[0]):
         seq_name  = segment.query_name
         if dict_read_info.get(seq_name): # not to count supplemntary alignments twice
             continue
-        dict_read_info[seq_name] = [] #TODO may be deleted if needed
+        dict_read_info[seq_name] = [] 
 
         start_pos = segment.reference_start # start position in genome coordiante
         stop_pos  = segment.reference_end
@@ -353,6 +357,9 @@ def find_recombination(fn_bam, fn_bed, dict_read):
         flag_forward = segment.is_forward
         query_seq    = segment.query_alignment_sequence
 
+        if not dict_read.get(seq_name):
+            print("WARNING!", seq_name, "not in the fasta file")
+            continue
         complete_seq = dict_read[seq_name] # segment.query_sequence doesn't include the hard clipped sequence
         if flag_forward:
             assert query_seq in complete_seq
@@ -364,7 +371,6 @@ def find_recombination(fn_bam, fn_bed, dict_read):
         # first check if there are supplementary alignment, if the split site is close to RSS, report, else defer for other reference genome
         if segment.has_tag("SA"):
             # make sure the "complete_seq" is sync with the pysam segments
-            print(seq_name, start_pos)
             seg_st, seg_ed = seq_between_clips(cigar_tuples, len(complete_seq), flag_forward)
             if flag_forward:
                 assert query_seq == complete_seq[seg_st:seg_ed]
@@ -404,10 +410,7 @@ def find_recombination(fn_bam, fn_bed, dict_read):
                     read_info[1].append((seg_st, seg_ed))      # Add PRIMARY SEGMENT info
                     read_info[2].append(None)      # Add PRIMARY SEGMENT info
                 
-                dict_split_sites = {"V":[], "D":[], "J":[]}
                 # first add the primary segment information
-                dict_split_sites[fst_gene[3]].append(seg_st)
-                dict_split_sites[fst_gene[3]].append(seg_ed)
                 for seg_info in list_legit_seg: # Fit split-segments
                     contig_name, seg_start, seg_stop, seg_tuples, seg_forward, seg_sequence = seg_info
                     seg_st, seg_ed = seq_between_clips(seg_info[3], len(complete_seq), seg_info[4])
@@ -415,11 +418,7 @@ def find_recombination(fn_bam, fn_bed, dict_read):
                     gene_start, min_dist_start = find_closest_gene(seg_start, 0, list_gene_position, list_gene_name)
                     gene_stop, min_dist_stop   = find_closest_gene(seg_stop,  1, list_gene_position, list_gene_name)
 
-                    dict_split_sites[gene_start[3]].append((seg_st, 'bg')) # beginning one on reference
-                    if abs(min_dist_stop) < 50 and gene_start[3] != "V":
-                        dict_split_sites[gene_start[3]].append((seg_ed, 'ed')) # ending one on reference
-                    info_start = gene_start if abs(min_dist_start) < 50 else None
-                    info_start = gene_start if abs(min_dist_start-75) < 125 and gene_stop[3] == "V" else None
+                    info_start = gene_start if abs(min_dist_start) < 50 or (abs(min_dist_start) < 200 and gene_stop[3] == "V") else None
                     info_stop  = gene_stop  if abs(min_dist_stop)  < 50 else None
                     # check if there are internal split deletions in this segment
                     call_result = call_recomb_with_cigar(seg_tuples, seg_start, list_gene_position, list_gene_name)
@@ -450,10 +449,6 @@ def find_recombination(fn_bam, fn_bed, dict_read):
                     read_info[1].append((seg_st, seg_ed))
                     read_info[2].append(None)
 
-                print("####################"*3, flag_forward)
-                print(len(complete_seq))
-                print(dict_split_sites)
-
                 # assign to "partial fit" or "fit"
                 if list_non_fit:
                     dict_read_info[seq_name] = ['partial_fit'] + read_info
@@ -478,21 +473,7 @@ def find_recombination(fn_bam, fn_bed, dict_read):
                 else:
                     dict_read_info[seq_name] = ["J_read",[],[],last_element]
 
-    """
-    print("#######"*20)
-    for read_name, info in dict_read_info.items():
-        print(read_name)
-        print(info)
-    """
     return dict_read_info
-    """
-    for seq_name, seq in dict_read.items():
-        if seq_name not in set_processed:
-            write_read(fo_s_fasta, seq_name, seq)
-
-    fo_s_fasta.close()
-    fo_d_fasta.close()
-    """
 
 
 
@@ -533,8 +514,6 @@ def main(arguments=None):
                 if info[0] != category:
                     print(seq_name)
                     print(list_info)
-
-        
 
 
 
