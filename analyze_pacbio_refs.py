@@ -153,6 +153,8 @@ def check_recomb_pair(pair_0, pair_1, list_gene_position, list_gene_name):
             return True, gene_0, gene_1, min_dist_0, min_dist_1
         elif gene_1[3] == "V" and abs(min_dist_1) < 200:
             return True, gene_0, gene_1, min_dist_0, min_dist_1
+    elif abs(min_dist_0 - min_dist_1) < 50:
+        return True, gene_0, gene_1, min_dist_0, min_dist_1
     return False, gene_0, gene_1, min_dist_0, min_dist_1
 
 
@@ -477,6 +479,9 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
 
 
 
+def rank_segment_type(seg_type):
+    dict_rank = {"fit":0, "partial_fit":1, "Unrecombined":2, "J_read":2, "D_read":2, "non-fit":3}
+    return dict_rank[seg_type]
 
         
 
@@ -509,11 +514,25 @@ def main(arguments=None):
             if dict_read_info.get(seq_name):
                 list_info.append(dict_read_info[seq_name])
         if list_info:
-            category = list_info[0][0]
+            candidate = list_info[0]
             for info in list_info[1:]:
-                if info[0] != category:
-                    print(seq_name)
-                    print(list_info)
+                if info[0] != candidate[0]:
+                    if rank_segment_type(info[0]) < rank_segment_type(candidate[0]):
+                        candidate = info
+            print(seq_name)
+            print(candidate)
+        else:
+            pass
+            #print("Normal")
+    
+    """
+    print("GRCh38")
+    print(sorted([info[0] for info in list_read_info[0].values()]), list_read_info[0]["m64136_200628_062837/30083542/ccs"][1][:2])
+    print("GRCh37")
+    print(sorted([info[0] for info in list_read_info[1].values()]), list_read_info[1]["m64136_200628_062837/30083542/ccs"][1][:2])
+    print("CHM13")
+    print(sorted([info[0] for info in list_read_info[2].values()]), list_read_info[2]["m64136_200628_062837/30083542/ccs"][1][:2])
+    """
 
 
 
