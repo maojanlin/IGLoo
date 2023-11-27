@@ -151,7 +151,7 @@ def check_recomb_pair(pair_0, pair_1, list_gene_position, list_gene_name):
     if abs(min_dist_0) < 50:
         if abs(min_dist_1) < 50:
             return True, gene_0, gene_1, min_dist_0, min_dist_1
-        elif gene_1[3] == "V" and abs(min_dist_1) < 200:
+        elif gene_1[3] == "V" and abs(min_dist_1) < 300:
             return True, gene_0, gene_1, min_dist_0, min_dist_1
     elif abs(min_dist_0 - min_dist_1) < 50:
         return True, gene_0, gene_1, min_dist_0, min_dist_1
@@ -358,6 +358,9 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
         cigar_tuples = segment.cigartuples
         flag_forward = segment.is_forward
         query_seq    = segment.query_alignment_sequence
+        
+        if query_seq == None:
+            continue
 
         if not dict_read.get(seq_name):
             print("WARNING!", seq_name, "not in the fasta file")
@@ -420,7 +423,7 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
                     gene_start, min_dist_start = find_closest_gene(seg_start, 0, list_gene_position, list_gene_name)
                     gene_stop, min_dist_stop   = find_closest_gene(seg_stop,  1, list_gene_position, list_gene_name)
 
-                    info_start = gene_start if abs(min_dist_start) < 50 or (abs(min_dist_start) < 200 and gene_stop[3] == "V") else None
+                    info_start = gene_start if abs(min_dist_start) < 50 or (abs(min_dist_start) < 300 and gene_stop[3] == "V") else None
                     info_stop  = gene_stop  if abs(min_dist_stop)  < 50 else None
                     # check if there are internal split deletions in this segment
                     call_result = call_recomb_with_cigar(seg_tuples, seg_start, list_gene_position, list_gene_name)
@@ -438,6 +441,8 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
                     contig_name, seg_start, seg_stop, seg_tuples, seg_forward, seg_sequence = seg_info
                     seg_st, seg_ed = seq_between_clips(seg_info[3], len(complete_seq), seg_info[4])
                     constant_gene, _ = find_closest_gene(seg_stop,  1, list_gene_position, list_gene_name)
+                    if constant_gene[3] == "J":
+                        constant_gene = None
                     
                     read_info[0].append((None, constant_gene))
                     read_info[1].append((seg_st, seg_ed))
@@ -465,7 +470,7 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
             if call_result:
                 seg_st, seg_ed = seq_between_clips(cigar_tuples, len(complete_seq), flag_forward)
                 read_info = call_result_to_read_info(call_result, cigar_tuples, query_seq, None, None, seg_st, seg_ed)
-                dict_read_info[seq_name] = ["fit"] + [read_info]
+                dict_read_info[seq_name] = ["fit"] + read_info
             else: # normal aligned reads
                 last_element = [] if (len(complete_seq) - len(query_seq))<50 else [query_seq]
                 if stop_pos > J_region[1] and start_pos < D_region[0]:
@@ -483,6 +488,195 @@ def rank_segment_type(seg_type):
     dict_rank = {"fit":0, "partial_fit":1, "Unrecombined":2, "J_read":2, "D_read":2, "non-fit":3}
     return dict_rank[seg_type]
 
+
+
+def output_candidate(segment_info, seq_name, sequence, fof):
+    # Deal with non-split segments
+    if segment_info[0] in ("non-fit", "D_read", "J_read", "Unrecombined"):
+        fof.write(">" + seq_name + '/' + segment_info[0] + '\n')
+        if len(segment_info) >= 3 and segment_info[3]:
+            fof.write(segment_info[3][0] + '\n')
+        else:
+            fof.write(sequence + "\n")
+        return
+
+    # Deal with legit segments
+    dict_VDJ = {"V":[], "D":[], "J":[], "C":[]}
+    for idx, gene_info in enumerate(segment_info[1]):
+        if gene_info[0] and gene_info[0][3] in ["D", "V"]: # gene_0 != None
+            if gene_info[0][3] == "D":
+                dict_VDJ["D"].append(segment_info[2][idx])
+            elif gene_info[0][3] == "V":
+                dict_VDJ["V"].append(segment_info[2][idx])
+            else:
+                print("WARNING! Uncommon recombination result!", segment_info[:-1])
+                dict_VDJ["C"].append(segment_info[2][idx])
+        elif gene_info[1]: # gene_1 != None
+            if gene_info[1][3] == "D":
+                dict_VDJ["D"].append(segment_info[2][idx])
+            elif gene_info[1][3] == "J":
+                dict_VDJ["J"].append(segment_info[2][idx])
+            elif gene_info[1][3] in ["A", "E", "G", "M"]:
+                dict_VDJ["C"].append(segment_info[2][idx])
+            else:
+                print("WARNING! Uncommon recombination result!", segment_info[:-1])
+        else:
+            dict_VDJ["C"].append(segment_info[2][idx])
+
+    # Output D genes
+    for idx, gene_info in enumerate(dict_VDJ["D"]):
+        fof.write(">" + seq_name + "/" + str(idx) + "/D_read\n")
+        fof.write(sequence[min(gene_info): max(gene_info)] + '\n')
+
+    # Try extend J segment
+    if len(dict_VDJ["J"]) > 1:
+        #print("Conflict for J segment! Separate all the segments!")
+        for idx, gene_info in enumerate(dict_VDJ["J"]):
+            fof.write(">" + seq_name + "/" + str(idx) + "/J_read\n")
+            fof.write(sequence[min(gene_info): max(gene_info)] + '\n')
+    elif dict_VDJ["J"]:
+        J_info = dict_VDJ["J"][0]
+        flag_extend = True
+        if J_info[0] < J_info[1]: # forward
+            for info in dict_VDJ["D"] + dict_VDJ["V"]:
+                if info[0] and info[0] < J_info[0]:
+                    flag_extend = False
+                if info[1] and info[1] < J_info[0]:
+                    flag_extend = False
+            fof.write(">" + seq_name + "/J_read\n")
+            if flag_extend:
+                #print("OOOOOOOOOOO Success J extension!", 0, J_info[1])
+                fof.write(sequence[:J_info[1]] + '\n')
+            else:
+                #print("XXXXXXXXXXX Conflict Reverse! Separate all the J segments")
+                fof.write(sequence[J_info[0]:J_info[1]] + '\n')
+        else: # Reverse
+            for info in dict_VDJ["D"] + dict_VDJ["V"]:
+                if info[0] and info[0] > J_info[0]:
+                    flag_extend = False
+                if info[1] and info[1] > J_info[0]:
+                    flag_extend = False
+            fof.write(">" + seq_name + "/J_read\n")
+            if flag_extend:
+                #print("OOOOOOOOOOO Success J extension!", len(sequence), J_info[1])
+                fof.write(sequence[J_info[1]:] + '\n')
+            else:
+                #print("XXXXXXXXXXX Conflict Reverse! Separate all the J segments")
+                fof.write(sequence[J_info[1]:J_info[0]] + '\n')
+    # Try extend V segment
+    if len(dict_VDJ["V"]) > 1:
+        #print("Conflict for V segment! Separate all the segments!")
+        for idx, gene_info in enumerate(dict_VDJ["V"]):
+            fof.write(">" + seq_name + "/" + str(idx) + "/V_read\n")
+            fof.write(sequence[min(gene_info): max(gene_info)] + '\n')
+    elif dict_VDJ["V"]:
+        V_info = dict_VDJ["V"][0]
+        flag_extend = True
+        if V_info[0] < V_info[1]: # forward
+            for info in dict_VDJ["D"] + dict_VDJ["J"]:
+                if info[0] and info[0] > V_info[1]:
+                    flag_extend = False
+                if info[1] and info[1] > V_info[1]:
+                    flag_extend = False
+            fof.write(">" + seq_name + "/V_read\n")
+            if flag_extend:
+                #print("OOOOOOOOOOO Success V extension!", V_info[0], len(sequence))
+                fof.write(sequence[V_info[0]:] + '\n')
+            else:
+                #print("XXXXXXXXXXX Conflict Reverse! Separate all V segment")
+                fof.write(sequence[V_info[0]:V_info[1]] + '\n')
+        else: # Reverse
+            for info in dict_VDJ["D"] + dict_VDJ["J"]:
+                if info[0] and info[0] < V_info[1]:
+                    flag_extend = False
+                if info[1] and info[1] < V_info[1]:
+                    flag_extend = False
+            fof.write(">" + seq_name + "/V_read\n")
+            if flag_extend:
+                #print("OOOOOOOOOOO Success V extension!", V_info[0], 0)
+                fof.write(sequence[:V_info[0]] + '\n')
+            else:
+                #print("XXXXXXXXXXX Conflict Reverse! Separate V segment")
+                fof.write(sequence[V_info[1]:V_info[0]] + '\n')
+        
+
+
+def sort_record(segment_info):
+    # Deal with non-split segments
+    if segment_info[0] in ("non-fit", "D_read", "J_read", "Unrecombined"):
+        if segment_info[0] == "non-fit":
+            #print("Unknown")
+            return "Unknown"
+        elif segment_info[0] == "Unrecombined":
+            #print("Unrecombined")
+            return "Unrecombined"
+        return None
+    dict_VDJ = {"V":[], "D":[], "J":[], "C":[]}
+    for idx, gene_info in enumerate(segment_info[1]):
+        if gene_info[0] and gene_info[0][3] in ["D", "V"]: # gene_0 != None
+            if gene_info[0][3] == "D":
+                dict_VDJ["D"].append(segment_info[1][idx])
+            elif gene_info[0][3] == "V":
+                dict_VDJ["V"].append(segment_info[1][idx])
+            else:
+                dict_VDJ["C"].append(segment_info[1][idx])
+        elif gene_info[1]: # gene_1 != None
+            if gene_info[1][3] == "D":
+                dict_VDJ["D"].append(segment_info[1][idx])
+            elif gene_info[1][3] == "J":
+                dict_VDJ["J"].append(segment_info[1][idx])
+            else:
+                dict_VDJ["C"].append(segment_info[1][idx])
+        else:
+            dict_VDJ["C"].append(segment_info[1][idx])
+    #print(dict_VDJ["J"], dict_VDJ["D"], dict_VDJ["V"])
+    list_combination = []
+    for gene_class in ["C", "J"]:
+        for gene_pair in dict_VDJ[gene_class]:
+            if gene_pair[1]:
+                list_combination.append(gene_pair[1])
+    for gene_class in ["D", "V"]:
+        for gene_pair in dict_VDJ[gene_class]:
+            if gene_pair[0]:
+                list_combination.append(gene_pair[0])
+            if gene_pair[1]:
+                list_combination.append(gene_pair[1])
+    return "---".join(list_combination)
+
+
+
+def output_report(dict_recomb, fn_out, fn_detail):
+    fo = open(fn_out, 'w')
+    dict_simplify = {}
+    for recomb in dict_recomb.values():
+        list_value = recomb.split('---')
+        if len(list_value) == 1:
+            if dict_simplify.get(list_value[0]):
+                dict_simplify[list_value[0]] += 1
+            else:
+                dict_simplify[list_value[0]] = 1
+        else:
+            result = None
+            for idx, value in enumerate(list_value):
+                if value[3] == "J":
+                    result = value + '---' + list_value[idx+1]
+                    break
+            if result:
+                if dict_simplify.get(result):
+                    dict_simplify[result] += 1
+                else:
+                    dict_simplify[result] = 1
+
+    for combination, occurence in sorted(dict_simplify.items()):
+        fo.write(combination + '\t' + str(occurence) + '\n')
+    fo.close()
+    
+    fo = open(fn_detail, 'w')
+    for seq_name, combination in sorted(dict_recomb.items()):
+        fo.write(seq_name + ',' + combination + '\n')
+    fo.close()
+
+
         
 
 
@@ -491,8 +685,9 @@ def main(arguments=None):
     parser.add_argument('-lbed', '--list_annotation_bed', required=True, nargs='+', help='the IGH annotations of the reference genomes.')
     parser.add_argument('-lbam', '--list_align_bam',      required=True, nargs='+', help='the alignment bam files of the IG reads to the reference genome.')
     parser.add_argument('-fasta', '--fasta',              required=True, help='the fasta file of the bams')
-    parser.add_argument('-out',   '--output_report', help='the output report path')
-    parser.add_argument('-out_fa', '--output_fasta', help='the output split read fasta')
+    parser.add_argument('-out',   '--output_report', help='the path of output report')
+    parser.add_argument('-out_dt','--output_detail', help='the path of detailed report')
+    parser.add_argument('-out_fa', '--output_fasta', required=True, help='the output split read fasta')
     args = parser.parse_args(arguments)
     
     list_bed = args.list_annotation_bed
@@ -500,14 +695,21 @@ def main(arguments=None):
     fn_fasta = args.fasta
     dict_read = read_fasta(fn_fasta)
 
-    fn_out = args.output_report
     fn_output_fasta = args.output_fasta
+    fn_out = args.output_report
+    if fn_out == None:
+        fn_out = fn_output_fasta + '.rpt'
+    fn_detail = args.output_detail
+    if fn_detail == None:
+        fn_detail = fn_out + '.detail'
 
     list_read_info = []
     for idx, fn_bam in enumerate(list_bam):
         fn_bed = list_bed[idx]
         list_read_info.append( find_recombination(fn_bam, fn_bed, dict_read) )
 
+    fof = open(fn_output_fasta, "w")
+    dict_recomb = {}
     for seq_name, sequence in dict_read.items():
         list_info = []
         for dict_read_info in list_read_info:
@@ -519,20 +721,19 @@ def main(arguments=None):
                 if info[0] != candidate[0]:
                     if rank_segment_type(info[0]) < rank_segment_type(candidate[0]):
                         candidate = info
-            print(seq_name)
-            print(candidate)
+            #print(seq_name)
+            #print(candidate[:-1])
+            output_candidate(candidate, seq_name, sequence, fof)
+            combination = sort_record(candidate)
+            if combination:
+                dict_recomb[seq_name] = combination
         else:
-            pass
-            #print("Normal")
+            fof.write('>' + seq_name + '\n')
+            fof.write(sequence + '\n')
+    fof.close()
+
+    output_report(dict_recomb, fn_out, fn_detail)
     
-    """
-    print("GRCh38")
-    print(sorted([info[0] for info in list_read_info[0].values()]), list_read_info[0]["m64136_200628_062837/30083542/ccs"][1][:2])
-    print("GRCh37")
-    print(sorted([info[0] for info in list_read_info[1].values()]), list_read_info[1]["m64136_200628_062837/30083542/ccs"][1][:2])
-    print("CHM13")
-    print(sorted([info[0] for info in list_read_info[2].values()]), list_read_info[2]["m64136_200628_062837/30083542/ccs"][1][:2])
-    """
 
 
 
