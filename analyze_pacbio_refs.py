@@ -159,6 +159,16 @@ def check_recomb_pair(pair_0, pair_1, list_gene_position, list_gene_name):
 
 
 
+def check_3_prime_gene(pos, list_gene_position, list_gene_name):
+    """ basically the same as check_recomb_pair, but without checking the pair info"""
+    gene, min_dist = find_closest_gene(pos, 0, list_gene_position, list_gene_name)
+    if abs(min_dist) < 50 or (gene[3] == "V" and abs(min_dist) < 300):
+        return True, gene, min_dist
+    else:
+        return False, gene, min_dist
+
+
+
 def call_recomb_with_cigar(cigar_tuples, start_pos, list_gene_position, list_gene_name):
     list_recomb_candidate = []
     for idx, (operation, length) in enumerate(cigar_tuples):
@@ -377,10 +387,19 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
         if segment.has_tag("SA"):
             # make sure the "complete_seq" is sync with the pysam segments
             seg_st, seg_ed = seq_between_clips(cigar_tuples, len(complete_seq), flag_forward)
+            # Assertion for the read sequence
             if flag_forward:
                 assert query_seq == complete_seq[seg_st:seg_ed]
             else:
                 assert query_seq == reverse_complement( complete_seq[seg_ed:seg_st] )
+            # Make sure the fst_gene is correct
+            if seg_ed in [0, len(complete_seq)]:
+                fst_gene = None
+            elif abs(min_dist_fst) >= 50:
+                if fst_gene[3] == "J":
+                    fst_gene = fst_gene + '?'
+                else:
+                    fst_gene = None
 
             list_alignment = segment.get_tag("SA").split(";")[:-1]
             list_alignment = sorted([SA_tag.split(',') for SA_tag in list_alignment])
@@ -395,7 +414,8 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
                 seg_start   = seg_info[1]
                 if contig_name == ref_name:
                     if seg_start >= stop_pos:
-                        check_result = check_recomb_pair(stop_pos, seg_start, list_gene_position, list_gene_name)
+                        #check_result = check_recomb_pair(stop_pos, seg_start, list_gene_position, list_gene_name)
+                        check_result = check_3_prime_gene(seg_start, list_gene_position, list_gene_name)
                         if check_result[0]:
                             list_legit_seg.append(seg_info)
                         else:
@@ -663,7 +683,7 @@ def output_report(dict_recomb, fn_out, fn_detail):
     dict_simplify = {}
     for recomb in dict_recomb.values():
         list_value = recomb.split('---')
-        if len(list_value) == 1:
+        if list_value[0] in ["Unrecombined", "Unknown"]:
             if dict_simplify.get(list_value[0]):
                 dict_simplify[list_value[0]] += 1
             else:
@@ -671,10 +691,11 @@ def output_report(dict_recomb, fn_out, fn_detail):
         else:
             result = None
             for idx, value in enumerate(list_value):
-                if value[3] == "J":
+                if value[3] in ["J", "A", "E", "G", "M"]:
                     if idx+1 < len(list_value): # and list_value[idx+1][3] != "J":
-                        result = value + '---' + list_value[idx+1]
-                        break
+                        if list_value[idx+1][3] in ["D", "V"]:
+                            result = value + '---' + list_value[idx+1]
+                            break
             if result:
                 if dict_simplify.get(result):
                     dict_simplify[result] += 1
@@ -747,6 +768,8 @@ def main(arguments=None):
             fof.write(sequence + '\n')
     fof.close()
 
+    #for key, value in dict_recomb.items():
+    #    print(key, value)
     output_report(dict_recomb, fn_out, fn_detail)
     
 
