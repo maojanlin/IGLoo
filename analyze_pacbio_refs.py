@@ -393,9 +393,12 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
             else:
                 assert query_seq == reverse_complement( complete_seq[seg_ed:seg_st] )
             # Make sure the fst_gene is correct
-            if seg_ed in [0, len(complete_seq)]:
+            flag_non_fit = False
+            #if seg_ed in [0, len(complete_seq)]:
+            if seg_ed < 10 or seg_ed > len(complete_seq) - 10: # check if the seg_ed is a real split
                 fst_gene = None
             elif abs(min_dist_fst) >= 50:
+                flag_non_fit = True
                 if fst_gene[3] == "J":
                     fst_gene = fst_gene + '?'
                 else:
@@ -432,19 +435,27 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
             if call_result:
                 read_info = call_result_to_read_info(call_result, cigar_tuples, query_seq, fst_head, fst_gene, seg_st, seg_ed)
             else: # normal aligned reads
-                read_info[0].append((fst_head, fst_gene))  # Add PRIMARY SEGMENT info
-                read_info[1].append((seg_st, seg_ed))      # Add PRIMARY SEGMENT info
-                read_info[2].append(query_seq)      # Add PRIMARY SEGMENT info
+                read_info[0].append((fst_head, fst_gene))   # Add PRIMARY SEGMENT info
+                read_info[1].append((seg_st, seg_ed))       # Add PRIMARY SEGMENT info
+                read_info[2].append(query_seq)              # Add PRIMARY SEGMENT info
             
             for seg_info in list_legit_seg: # Fit split-segments
                 contig_name, seg_start, seg_stop, seg_tuples, seg_forward, seg_sequence = seg_info
                 seg_st, seg_ed = seq_between_clips(seg_info[3], len(complete_seq), seg_info[4])
 
                 gene_start, min_dist_start = find_closest_gene(seg_start, 0, list_gene_position, list_gene_name)
-                gene_stop, min_dist_stop   = find_closest_gene(seg_stop,  1, list_gene_position, list_gene_name)
+                if seg_stop < V_region[0]:
+                    gene_stop, min_dist_stop   = find_closest_gene(seg_stop,  1, list_gene_position, list_gene_name)
+                else:
+                    gene_stop, min_dist_stop   = find_closest_gene(seg_stop,  0, list_gene_position, list_gene_name)
 
                 info_start = gene_start if abs(min_dist_start) < 50 or (abs(min_dist_start) < 300 and gene_stop[3] == "V") else None
-                info_stop  = gene_stop  if abs(min_dist_stop)  < 50 and seg_ed not in [0, len(complete_seq)] else None
+                #if seg_ed in [0, len(complete_seq)]:
+                if seg_ed < 10 or seg_ed > len(complete_seq) - 10: # check if the seg_ed is a real split
+                    info_stop = None
+                else: # left side already match, criteria for right side can be more strict
+                    info_stop  = gene_stop if abs(min_dist_stop) < 50 else gene_stop + '?' if abs(min_dist_stop) < 500 else None
+
                 # check if there are internal split deletions in this segment
                 call_result = call_recomb_with_cigar(seg_tuples, seg_start, list_gene_position, list_gene_name)
                 if call_result:
@@ -470,14 +481,22 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
             for seg_info in list_non_fit: # non-fit segments:
                 contig_name, seg_start, seg_stop, seg_tuples, seg_forward, seg_sequence = seg_info
                 seg_st, seg_ed = seq_between_clips(seg_info[3], len(complete_seq), seg_info[4])
-                non_fit_gene, min_dist = find_closest_gene(seg_stop,  1, list_gene_position, list_gene_name)
+                #if seg_ed in [0, len(complete_seq)]:
+                if seg_ed < 10 or seg_ed > len(complete_seq) - 10: # check if the seg_ed is a real split
+                    non_fit_gene = None
+                else:
+                    if seg_stop < V_region[0]:
+                        non_fit_gene, min_dist = find_closest_gene(seg_stop,  1, list_gene_position, list_gene_name)
+                    else:
+                        non_fit_gene, min_dist = find_closest_gene(seg_stop,  0, list_gene_position, list_gene_name)
+                    non_fit_gene = non_fit_gene if abs(min_dist) < 50 else non_fit_gene + '?' if abs(min_dist) < 500 else None
                 
-                read_info[0].append((None, non_fit_gene)) if abs(min_dist) < 50 else read_info[0].append((None,None))
+                read_info[0].append((None, non_fit_gene)) 
                 read_info[1].append((seg_st, seg_ed))
                 read_info[2].append(seg_sequence)
 
             if list_legit_seg: # assign to "partial fit" or "fit"
-                if list_non_fit:
+                if list_non_fit or flag_non_fit:
                     dict_read_info[seq_name] = ['partial_fit'] + read_info
                 else:
                     dict_read_info[seq_name] = ['fit'] + read_info
@@ -550,6 +569,7 @@ def output_candidate(segment_info, seq_name, sequence, fof):
                 dict_VDJ["C"].append(segment_info[2][idx])
             else:
                 print("WARNING! Uncommon recombination result!", segment_info[:-1])
+                dict_VDJ["V"].append(segment_info[2][idx])
         else:
             dict_VDJ["C"].append(segment_info[2][idx])
 
@@ -643,38 +663,58 @@ def sort_record(segment_info):
         return None
 
     # Deal with "fit" and "CJ" cases
-    dict_VDJ = {"V":[], "D":[], "J":[], "C":[]}
+    dict_VDJ     = {"V":[], "D":[], "J":[], "C":[]}
+    dict_VDJ_pos = {"V":[], "D":[], "J":[], "C":[]}
     for idx, gene_info in enumerate(segment_info[1]):
         if gene_info[0] and gene_info[0][3] in ["D", "V"]: # gene_0 != None
             if gene_info[0][3] == "D":
                 dict_VDJ["D"].append(segment_info[1][idx])
+                dict_VDJ_pos["D"].append(segment_info[2][idx])
             elif gene_info[0][3] == "V":
                 dict_VDJ["V"].append(segment_info[1][idx])
+                dict_VDJ_pos["V"].append(segment_info[2][idx])
             else:
                 dict_VDJ["C"].append(segment_info[1][idx])
+                dict_VDJ_pos["C"].append(segment_info[2][idx])
         elif gene_info[1]: # gene_1 != None
             if gene_info[1][3] == "D":
                 dict_VDJ["D"].append(segment_info[1][idx])
+                dict_VDJ_pos["D"].append(segment_info[2][idx])
             elif gene_info[1][3] == "J":
                 dict_VDJ["J"].append(segment_info[1][idx])
-            else:
+                dict_VDJ_pos["J"].append(segment_info[2][idx])
+            elif gene_info[1][3] in ["A", "E", "G", "M"]:
                 dict_VDJ["C"].append(segment_info[1][idx])
+                dict_VDJ_pos["C"].append(segment_info[2][idx])
+            else:
+                dict_VDJ["V"].append(segment_info[1][idx])
+                dict_VDJ_pos["V"].append(segment_info[2][idx])
         else:
             dict_VDJ["C"].append(segment_info[1][idx])
+            dict_VDJ_pos["C"].append(segment_info[2][idx])
     #print(dict_VDJ["J"], dict_VDJ["D"], dict_VDJ["V"])
     list_combination = []
+    list_combination_pos = []
     for gene_class in ["C", "J"]:
-        for gene_pair in dict_VDJ[gene_class]:
+        for idx, gene_pair in enumerate(dict_VDJ[gene_class]):
             if gene_pair[1]:
                 list_combination.append(gene_pair[1])
+                seg_pos = dict_VDJ_pos[gene_class][idx]
+                list_combination_pos.append(str(seg_pos[0])+'-'+str(seg_pos[1]))
     for gene_class in ["D", "V"]:
-        for gene_pair in dict_VDJ[gene_class]:
+        for idx, gene_pair in enumerate(dict_VDJ[gene_class]):
             if gene_pair[0]:
                 list_combination.append(gene_pair[0])
+                seg_pos = dict_VDJ_pos[gene_class][idx]
+                list_combination_pos.append(str(seg_pos[0])+'-'+str(seg_pos[1]))
             if gene_pair[1]:
                 list_combination.append(gene_pair[1])
+                seg_pos = dict_VDJ_pos[gene_class][idx]
+                list_combination_pos.append(str(seg_pos[0])+'-'+str(seg_pos[1]))
 
-    return "---".join(list_combination)
+    #print(list_combination)
+    #print(list_combination_pos)
+    return "---".join(list_combination)#, ';'.join(list_combination_pos)
 
 
 
