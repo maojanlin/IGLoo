@@ -168,6 +168,14 @@ def check_3_prime_gene(pos, list_gene_position, list_gene_name):
         return False, gene, min_dist
 
 
+def check_5_prime_gene(pos, list_gene_position, list_gene_name):
+    """ basically the same as check_recomb_pair, but without checking the pair info"""
+    gene, min_dist = find_closest_gene(pos, 1, list_gene_position, list_gene_name)
+    if abs(min_dist) < 50 or (gene[3] == "V" and abs(min_dist) < 300):
+        return True, gene, min_dist
+    else:
+        return False, gene, min_dist
+
 
 def call_recomb_with_cigar(cigar_tuples, start_pos, list_gene_position, list_gene_name):
     list_recomb_candidate = []
@@ -342,7 +350,7 @@ def find_recombination(fn_bam, fn_bed, dict_read) -> dict:
         - key: seq_name
         - value : ["type", [(gene0,gene1),(gene2,gene3),...], [(pos0,pos1),(pos2,pos3),...], [seq1,seq2,...]]
     
-    type: "fir", "partial_fit", "non-fit", "Unrecombined", "D_read", "J_read"
+    type: "fit", "partial_fit", "non-fit", "Unrecombined", "D_read", "J_read"
     
     pos0, pos1 are the relative position on the whole read sequence
     """

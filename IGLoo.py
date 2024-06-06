@@ -25,7 +25,7 @@ def align_and_index(ref, input_fasta, prefix):
 
 def main():
     parser = argparse.ArgumentParser(description="The 2nd module (bam/fasta) file analyzer of IGLoo.")
-    parser.add_argument('-o', '--out', help="Path to output directory ['out_dir'].", default="result_dir")
+    parser.add_argument('-o', '--out', help="Path to output directory ['result_dir'].", default="result_dir")
     parser.add_argument('-s', '--sample_id', help="Sample ID ['sample'].", default="sample")
 
     parser.add_argument('-lr', '--list_ref', help='list of reference genome for analysis', nargs='+')
@@ -156,7 +156,7 @@ def main():
     subprocess.call("mkdir -p " + path_output, shell=True)
     prefix_out = path_output + '/' + sample_id
     if input_bam != None: # input_bam is specified
-        command = ['-bed', list_bed[0], '-bam', input_bam, '-out', prefix_out + '.1']
+        command = ['-bed', list_bed[0], '-bam', input_bam, '-out', prefix_out + '.1', '-name']
         analyze_recombine.main(command)
         if input_fasta == None:
             #make the IGH fasta_file
@@ -167,7 +167,7 @@ def main():
         # Align the raw reads to reference
         align_and_index(list_ref[0], input_fasta, prefix_out+'.0')
         # Analyze the bam file
-        command = ['-bed', list_bed[0], '-bam', prefix_out+'.0.bam', '-out', prefix_out + '.1']
+        command = ['-bed', list_bed[0], '-bam', prefix_out+'.0.bam', '-out', prefix_out + '.1', '-name']
         analyze_recombine.main(command)
 
     # The loop process
@@ -207,10 +207,6 @@ def main():
     result_bad = result_bad.stdout.strip()
     fo_summary.write(result_bad+'\n')
     fo_summary.close()
-
-
-
-
 
 
 

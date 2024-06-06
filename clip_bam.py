@@ -127,7 +127,6 @@ def clip_fasta(fn_bam, list_gene_position, list_gene_name, ref_name, \
     J_region = dict_gene_region["J"]
     D_region = dict_gene_region["D"]
     
-    """
     num_split = 0; num_no_split = 0
     f_bam = pysam.AlignmentFile(fn_bam)
     for segment in f_bam.fetch(ref_name, J_region[0]-12500, J_region[0]):
@@ -141,9 +140,7 @@ def clip_fasta(fn_bam, list_gene_position, list_gene_name, ref_name, \
     print(num_split, num_no_split)
 
     # discard constant splitting reads if there are non-spliting reads
-    """
     set_constant_split = set()
-    """
     if num_no_split > 5:
         f_bam = pysam.AlignmentFile(fn_bam)
         for segment in f_bam.fetch(ref_name, J_region[0]-12500, J_region[0]):
@@ -168,7 +165,6 @@ def clip_fasta(fn_bam, list_gene_position, list_gene_name, ref_name, \
             else:
                 pass
                 #print("###", seq_name, "NO")
-            """
     
     ###### Adding the normal reads ######
     set_target_read.add("")
@@ -270,12 +266,13 @@ def clip_fasta(fn_bam, list_gene_position, list_gene_name, ref_name, \
         seq_forward = dict_target_read[seq_name]
         seq_reverse = get_reverse_complement(seq_forward)
         flag_constant = False # check if there is constant gene recombination
-        for SA_info in list_alignment:
+        for c_id, SA_info in enumerate(list_alignment):
             if SA_info[0] == ref_name and int(SA_info[1]) < start_pos: # it is a constant gene recombination
                 flag_constant = True
                 bg_SH, read_len, ed_SH = cigar_read_len(SA_info[3])
                 
-                fo.write(">" + seq_name + '/0\n')
+                fo.write(">" + seq_name + '/0.' + str(c_id) + '\n')
+
                 if SA_info[2] == "+": # forward
                     fo.write(seq_forward[bg_SH:bg_SH + read_len -300] + '\n')
                 else:
@@ -295,18 +292,19 @@ def clip_fasta(fn_bam, list_gene_position, list_gene_name, ref_name, \
 
         """
         if flag_constant: # if constant gene recombination, clip the beginning of the J gene sequence
-            const_clip = 60
+            const_clip = 6
         else:
             const_clip = 0
-            if bg_SH > 300:
+        if bg_SH > 300:
+            if flag_constant == False:
                 fo.write(">" + seq_name + '/0\n')
                 fo.write(target_seq[:bg_SH] + '\n')
         if ed_SH != 0: # there are following sequence
             fo.write(">" + seq_name + '/1\n')
-            fo.write(target_seq[bg_SH+const_clip:-(ed_SH+60)] + '\n')
-            if ed_SH > 300:
+            fo.write(target_seq[bg_SH+const_clip:-(ed_SH+6)] + '\n')
+            if ed_SH > 60:
                 fo.write(">" + seq_name + '/2\n')
-                fo.write(target_seq[-(ed_SH-300):] + '\n')
+                fo.write(target_seq[-(ed_SH-60):] + '\n')
         else:
             pass
             fo.write(">" + seq_name + '/1\n')

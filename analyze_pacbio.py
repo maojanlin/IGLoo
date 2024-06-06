@@ -220,6 +220,45 @@ def jump_and_split(fn_bam, fo, list_alignment, seq_name, list_gene_position=None
                 break
 
 
+def jump_and_fetch(fn_bam, list_alignment, seq_name):
+    f_bam_sub = pysam.AlignmentFile(fn_bam)
+    set_seg_info = set() # use set in case of segmental duplication making two segments start and the same position
+    for c_id, SA_info in enumerate(list_alignment):
+        for segment in f_bam_sub.fetch(SA_info[0], int(SA_info[1]), int(SA_info[1])+1):
+            if seq_name == segment.query_name:
+                query_seq = segment.query_alignment_sequence
+                if query_seq != None:
+                    foward_flag = segment.is_forward
+                    start_pos = segment.reference_start # start position in genome coordiante
+                    stop_pos  = segment.reference_end
+                    cigar_tuples = segment.cigartuples
+                    chr_name  =  SA_info[0]
+                    set_seg_info.add((chr_name, start_pos, stop_pos, tuple(cigar_tuples), foward_flag, query_seq))
+    return sorted(set_seg_info)
+
+
+def seq_between_clips(cigar_tuples, seq_len, flag_forward):
+    operation, length = cigar_tuples[0]
+    if operation == 4 or operation == 5:
+        pos_start = length
+    else:
+        pos_start = 0
+    operation, length = cigar_tuples[-1]
+    if operation == 4 or operation == 5:
+        pos_end = seq_len - length
+    else:
+        pos_end = seq_len
+
+    print('----------------', len(cigar_tuples))
+    if flag_forward:
+        print(pos_start, pos_end)
+        return pos_start, pos_end
+    else:
+        print(seq_len-pos_end, seq_len-pos_start)
+        return seq_len-pos_end, seq_len-pos_start
+
+
+
 def write_read(fo, seq_name, sequence):
     fo.write('>' + seq_name + '\n')
     fo.write(sequence + '\n')
@@ -247,6 +286,13 @@ def split_with_cigar(list_target_idx, cigar_tuples, sequence):
         split_reads.append(sequence[list_position[idx]:list_position[idx+1]])
     return split_reads
 
+
+def reverse_complement(seq):
+    dict_reverse = {"A": "T", "T": "A", "C": "G", "G": "C", "a": "t", "t": "a", "c": "g", "g": "c"}
+    r_seq = ""
+    for ele in seq[::-1]:
+        r_seq += dict_reverse[ele]
+    return r_seq
 
 
 def find_recombination(fn_bam, list_gene_name, list_gene_position, ref_name, dict_read, fn_out, fn_output_fasta, fn_defer_fasta):
@@ -276,12 +322,36 @@ def find_recombination(fn_bam, list_gene_name, list_gene_position, ref_name, dic
         start_pos = segment.reference_start # start position in genome coordiante
         stop_pos  = segment.reference_end
         cigar_tuples = segment.cigartuples
+        flag_forward = segment.is_forward
+        query_seq    = segment.query_alignment_sequence
+        complete_seq = dict_read[seq_name] # segment.query_sequence doesn't include the hard clipped sequence
         fst_gene, min_dist_J = find_closest_gene(stop_pos, 1, list_gene_position, list_gene_name)
 
         # first check if there are supplementary alignment, if the split site is close to RSS, report, else defer for other reference genome
         if segment.has_tag("SA"):
+            # make sure the "complete_seq" is sync with the pysam segments
+            print(seq_name, start_pos)
+            seg_st, seg_ed = seq_between_clips(cigar_tuples, len(complete_seq), flag_forward)
+            if flag_forward:
+                assert complete_seq[seg_st:seg_ed] == query_seq
+            else:
+                assert complete_seq[seg_st:seg_ed] == reverse_complement(query_seq)
+
             list_alignment = segment.get_tag("SA").split(";")[:-1]
-            list_alignment = sorted([SA_info.split(',') for SA_info in list_alignment])
+            list_alignment = sorted([SA_tag.split(',') for SA_tag in list_alignment])
+            list_seg_info  = jump_and_fetch(fn_bam, list_alignment, seq_name)
+            
+            # make sure the supplementary alignment is in sync with this reference genome, otherwise defer
+            list_legit_seg  = []
+            for seg_info in list_seg_info:
+                contig_name = seg_info[0]
+                seg_start   = seg_info[1]
+                if contig_name == ref_name and seg_start >= stop_pos:
+                    check_result = check_recomb_pair(stop_pos, seg_start, list_gene_position, list_gene_name)
+                    if check_result[0]:
+                        list_legit_seg.append(seg_info)
+
+            """
             list_const = []
             list_gene =  []
             list_SA_const = []
@@ -303,42 +373,68 @@ def find_recombination(fn_bam, list_gene_name, list_gene_position, ref_name, dic
                         if check_result[0]:
                             if list_gene == []:
                                 list_gene.append(check_result[1])
-                            list_gene.append(check_result[2])
-                            print('-----', check_result)
+                            #list_gene.append(check_result[2])
+                            #print('-----', check_result)
                         else:
                             print('\t\t', check_result)
+                            print(SA_info)
+                            for seg_info in list_seg_info:
+                                seg_st, seg_ed = seq_between_clips(seg_info[3], len(complete_seq), seg_info[4])
                         list_SA_gene.append(SA_info + [check_result[2][3]])
-            if list_gene:
+                        """
+
+            if list_legit_seg: # split and store to fo_s_fasta
+                dict_split_sites = {"V":[], "D":[], "J":[]}
+                # first add the primary segment information
+                dict_split_sites[fst_gene[3]].append(seg_st)
+                dict_split_sites[fst_gene[3]].append(seg_ed)
+                for seg_info in list_legit_seg:
+                    #TODO: get the V/D/J split site and check if there are internal deletion split
+                    contig_name, seg_start, seg_stop, seg_tuples, seg_forward, seg_sequence = seg_info
+                    seg_tips = seq_between_clips(seg_info[3], len(complete_seq), seg_info[4])
+
+                    gene_start, min_dist_start = find_closest_gene(seg_start, 1, list_gene_position, list_gene_name)
+                    gene_stop, min_dist_stop   = find_closest_gene(seg_stop,  0, list_gene_position, list_gene_name)
+                    dict_split_sites[gene_start[3]].append((seg_tips[not seg_forward], 'bg')) # beginning one on reference
+                    if min_dist_stop < 50 and gene_start[3] != "V":
+                        dict_split_sites[gene_start[3]].append((seg_tips[seg_forward], 'ed')) # ending one on reference
+                print("####################"*3, flag_forward)
+                print(len(complete_seq))
+                print(dict_split_sites)
+                    
+
+                """
                 call_result = call_recomb_with_cigar(cigar_tuples, start_pos, list_gene_position, list_gene_name)
                 if call_result:
                     split_result = split_with_cigar([info[0] for info in call_result], cigar_tuples, sequence)
                     for idx, split_seq in enumerate(split_result):
                         write_read(fo_s_fasta, seq_name + '/segment0/sub' + str(idx) + '/' + fst_gene[3] + '_read', split_seq)
                 else:
-                    write_read(fo_s_fasta, seq_name + '/segment0/' + fst_gene[3] + '_read', segment.query_alignment_sequence)
+                    write_read(fo_s_fasta, seq_name + '/segment0/' + fst_gene[3] + '_read', query_seq)
                 jump_and_split(fn_bam, fo_s_fasta, list_SA_const, seq_name)
                 jump_and_split(fn_bam, fo_s_fasta, list_SA_gene , seq_name, list_gene_position, list_gene_name)
+                """
             else: # defer read to fo_d_fasta
-                write_read(fo_d_fasta, seq_name, dict_read[seq_name])
+                write_read(fo_d_fasta, seq_name, complete_seq)
         else:
             # if there is no supplementary alignment, check if there are >1000 deletions similar to recombination
             call_result = call_recomb_with_cigar(cigar_tuples, start_pos, list_gene_position, list_gene_name)
             if call_result:
                 print(seq_name, call_result)
-                split_result = split_with_cigar([info[0] for info in call_result], cigar_tuples, segment.query_alignment_sequence)
+                split_result = split_with_cigar([info[0] for info in call_result], cigar_tuples, query_seq)
                 for idx, split_seq in enumerate(split_result):
                     fo_s_fasta.write('>' + seq_name + '/segment' + str(idx) + '\n')
                     fo_s_fasta.write(split_seq + '\n')
             else: # normal aligned reads
                 if stop_pos > J_region[1] and start_pos < D_region[0]:
                     print("Unrecombined read", seq_name)
-                    write_read(fo_s_fasta, seq_name + '/Unrecombined', segment.query_alignment_sequence)
+                    write_read(fo_s_fasta, seq_name + '/Unrecombined', query_seq)
                 elif start_pos >= D_region[0]:
                     print("Normal D read", seq_name)
-                    write_read(fo_s_fasta, seq_name + '/D_read', segment.query_alignment_sequence)
+                    write_read(fo_s_fasta, seq_name + '/D_read', query_seq)
                 else:
                     print("Normal J read", seq_name)
-                    write_read(fo_s_fasta, seq_name + '/J_read', segment.query_alignment_sequence)
+                    write_read(fo_s_fasta, seq_name + '/J_read', query_seq)
 
     for seq_name, seq in dict_read.items():
         if seq_name not in set_processed:

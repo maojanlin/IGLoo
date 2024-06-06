@@ -30,7 +30,7 @@ def main():
 
     # set the environment
     path_module   = os.path.dirname(__file__)
-    path_material = os.path.dirname(__file__) + '/material/'
+    path_material = os.path.dirname(__file__) + '/materials/'
     
     work_dir = out_dir + '/annotate/'
     subprocess.call("mkdir -p " + out_dir, shell=True)
@@ -43,7 +43,7 @@ def main():
     
     command = ['-bed1', work_dir+sample_id+'/group_genes.1.bed', '-out1', out_dir+'/'+sample_id+'.contig_gene.1.csv', \
                '-bed2', work_dir+sample_id+'/group_genes.2.bed', '-out2', out_dir+'/'+sample_id+'.contig_gene.2.csv', \
-               '-target', "materials/IGH_functional.txt", '--summary_num', out_dir+'/summary.txt']
+               '-target', path_material+"/IGH_functional.txt", '--summary_num', out_dir+'/summary.txt']
     contig_gene_table.main(command)
 
     
