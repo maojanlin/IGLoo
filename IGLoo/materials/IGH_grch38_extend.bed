@@ -1,0 +1,3 @@
+#chrom	chromStart	chromEnd	name
+chr14	105486937	106979845	IGH_locus
+chr14_KI270726v1_random	0	43739	IGH_alt_locus
