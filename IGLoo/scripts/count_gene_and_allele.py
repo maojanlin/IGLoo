@@ -1,5 +1,5 @@
 import argparse
-from contig_gene_table import read_annotation, parse_gene
+from .contig_gene_table import read_annotation, parse_gene
 
 
 def main(arguments=None):

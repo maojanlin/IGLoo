@@ -5,9 +5,9 @@ import os
 import argparse
 
 # project modules
-from utils import check_program_install, catch_assert  
-import contig_gene_table
-import count_gene_and_allele
+from scripts.utils import check_program_install, catch_assert  
+from scripts import contig_gene_table
+from scripts import count_gene_and_allele
 
 
 
