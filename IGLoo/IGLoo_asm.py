@@ -8,6 +8,7 @@ import argparse
 from scripts.utils import check_program_install, catch_assert  
 from scripts import contig_gene_table
 from scripts import count_gene_and_allele
+from scripts import plot_asm
 
 
 
@@ -41,11 +42,17 @@ def main():
         command += ["-a2", assembly_2]
     subprocess.call(command)
     
+    # Summarize the IG genes
     command = ['-bed1', work_dir+sample_id+'/group_genes.1.bed', '-out1', out_dir+'/'+sample_id+'.contig_gene.1.csv', \
                '-bed2', work_dir+sample_id+'/group_genes.2.bed', '-out2', out_dir+'/'+sample_id+'.contig_gene.2.csv', \
                '-target', path_material+"/IGH_functional.txt", '--summary_num', out_dir+'/summary.txt']
     contig_gene_table.main(command)
 
+    # Plot the gene count
+    command = ['-csv', out_dir+'/'+sample_id+'.contig_gene.1.csv', '-id', sample_id + '.1', '-out', out_dir+'/'+sample_id+'.contig_gene.1.pdf']
+    plot_asm.main(command)
+    command = ['-csv', out_dir+'/'+sample_id+'.contig_gene.2.csv', '-id', sample_id + '.2', '-out', out_dir+'/'+sample_id+'.contig_gene.2.pdf']
+    plot_asm.main(command)
     
 
 
