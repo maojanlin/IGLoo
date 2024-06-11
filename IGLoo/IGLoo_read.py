@@ -8,6 +8,7 @@ import argparse
 from scripts.utils import check_program_install, catch_assert  
 from scripts import analyze_pacbio_refs
 from scripts import enrich_DJ_read
+from scripts import plot_events
 
 
 
@@ -94,7 +95,11 @@ def main():
                '-out',   path_output+'/processed_fasta/'+sample_id+'.split.enrich.fa']
     enrich_DJ_read.main(command)
 
-
+    # plot pie chart
+    command = ['-rpt', path_output+'/pc_report/'+sample_id+'.split.rpt', \
+               '-id',  sample_id,
+               '-out', path_output+'/pc_report/'+sample_id+'.pie_chart.pdf']
+    plot_events.main(command)
 
 
 
