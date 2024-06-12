@@ -12,14 +12,14 @@ from scripts import plot_asm
 
 
 
-def main():
+def main(arguments=None):
     parser = argparse.ArgumentParser(description="The 1st module (assembly) analyzer of IGLoo, only IGH is supported now.")
     parser.add_argument('-rd', '--result_dir', help="Path to output directory ['result_dir'].", default="result_dir")
     parser.add_argument('-id', '--sample_id', help="Sample ID ['sample_id'].", default="sample_id")
 
     parser.add_argument('-a1', '--assembly_1', help='input assembly H1 file (.fa) for analysis', required=True)
     parser.add_argument('-a2', '--assembly_2', help='input assembly H2 file (.fa) for analysis')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
     
 
     ###### Parameters for IGLoo
