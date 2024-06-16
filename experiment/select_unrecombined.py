@@ -2,15 +2,19 @@ import argparse
 
 
 def filter_unrecombine(input_text):
+    flag_recomb = True
     for line in input_text:
         if line[:2] == "IG":
             continue
         elif line[:12] == "Unrecombined":
-            break
+            flag_recomb = False
         elif line.isnumeric():
             continue
+        elif line[:5] == "=====":
+            flag_recomb = not flag_recomb
         else:
-            print(line)
+            if flag_recomb:
+                print(line)
 
 
 

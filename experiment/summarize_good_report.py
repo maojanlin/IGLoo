@@ -25,16 +25,13 @@ def summarize_report(fn_report, dict_full, dict_VDJ):
 
 
 
-
-
-
-if __name__ == "__main__":
+def main(arguments=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('-lr', '--list_report', nargs='+', required=True, help='the list of the good reports')
     parser.add_argument('-bad', '--bad_file', help="bad file report.")
     parser.add_argument('-out', '--output_file', help="specify for the final good report result.")
     parser.add_argument('-const', '--constant_gene', action='store_true', help='consider constant gene in classification')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
     
     list_report = args.list_report
     bad_file    = args.bad_file
@@ -72,3 +69,10 @@ if __name__ == "__main__":
     else:
         unrecombine_num = 0
     print(len(dict_full), len(dict_VDJ), total_num, max_num, unrecombine_num, sep='\t')
+    return [len(dict_full), len(dict_VDJ), total_num, max_num, unrecombine_num]
+
+
+
+
+if __name__ == "__main__":
+    main()
