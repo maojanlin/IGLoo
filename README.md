@@ -1,8 +1,17 @@
 
-_Updated: Jun 10, 2024_
+_Updated: Jun 16, 2024_
 # IGLoo
 Analyzing the Immunoglobulin (IG) HiFi read data and assemblies derived from Lymphoblastoid cell lines (LCLs).
 
+
+## Prerequisite programs
+- samtools=v1.11
+- minimap2=v2.24
+- yak=v0.1-r56
+- hifiasm=v0.18.2-r467
+- gAIRR-suite=v0.2.0
+- MaSuRCA=v4.1.0
+- JASPER=v1.0.2
 
 
 ## Usage
@@ -22,6 +31,15 @@ $ python3 IGLoo/IGLoo_read.py [-h] [-rd RESULT_DIR] [-id SAMPLE_ID] \
 ```
 
 Note that at least one of the ```INPUT_BAM``` and ```INPUT_FASTA``` should be specified.  The reference used in the ```INPUT_BAM``` should be put in the first position.
+
+### Reassemble personal assemblies in the IGH
+
+```
+$ python3 IGLoo/IGLoo_ReAsm.py  [-h] [-rd RESULT_DIR] [-id SAMPLE_ID] -fa PREPROCESSED_FASTA [-p1 PARENT_1] [-p2 PARENT_2] [-t THREADS]
+$ python3 IGLoo/IGLoo_ReAsm2.py [-h] [-rd RESULT_DIR] [-id SAMPLE_ID] -fa PREPROCESSED_FASTA [-t THREADS]
+```
+
+The ```IGLoo_ReAsm.py``` assembles the draft assembly with hifiasm.  The ```IGLoo_ReAsm2.py``` types the SV from draft assembly to generate personal references.  MaSuRCA was then applied to generate the final assembly.
 
 
 
@@ -43,3 +61,18 @@ $ python3 IGLoo/IGLoo_read.py -id HG005 \
                                   path_to_grch37.fa \
                                   path_to_chm13.fa
 ```
+
+Running the ```IGLoo --ReAsm```
+```
+python3 IGLoo/IGLoo_ReAsm.py -rd example/ReAsm_out/ -id HG005 \
+                             -fa example/read_out2/processed_fasta/HG005.split.enrich.fa \
+                             -p1 example/HG006.final.IGH.bam \
+                             -p2 example/HG007.final.IGH.bam
+
+export PYTHONPATH=/home/user/lib/python3.9
+python3 IGLoo/IGLoo_ReAsm2.py -rd example/ReAsm_out/ -id HG005 \
+                              -fa example/read_out2/processed_fasta/HG005.split.enrich.fa
+```
+
+Note that $PYTHONPATH needs to be specified to run JASPER and Jellyfish.
+
