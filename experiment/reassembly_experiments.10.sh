@@ -36,25 +36,25 @@ pacbio_reference_clip_preprocess() {
                                    -out_dt pc_report/${sample_ID}.split.detail.rpt \
                                    -out    pc_report/${sample_ID}.split.rpt
     
-    #python3 enrich_DJ_read.py -fasta ${out_dir}/processed_fasta/${sample_ID}.split.fa \
-    #                          -out   ${out_dir}/processed_fasta/${sample_ID}.split.enrich.fa
-    #
-    ## hifiasm
-    #echo "[AIRRsembly] Assemble with hifiasm trio-binning method..."
-    #mkdir -p ${out_dir}/reassembly/${sample_ID}
-    #/home/mlin77/scr4_blangme2/maojan/hifiasm/hifiasm -o ${out_dir}/reassembly/${sample_ID}/${sample_ID}.IGH.asm -t 8 \
-    #                                                  -1 ${parent_1_yak} \
-    #                                                  -2 ${parent_2_yak} \
-    #                                                  ${out_dir}/processed_fasta/${sample_ID}.split.enrich.fa
-    #
-    #awk '/^S/{print ">"$2;print $3}' ${out_dir}/reassembly/${sample_ID}/${sample_ID}.IGH.asm.dip.hap1.p_ctg.gfa > ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap1.fa
-    #awk '/^S/{print ">"$2;print $3}' ${out_dir}/reassembly/${sample_ID}/${sample_ID}.IGH.asm.dip.hap2.p_ctg.gfa > ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap2.fa
-    #
-    ## IGLoo --genotype
-    #echo "[AIRRsembly] IGLoo --genotype..."
-    #python3 IGLoo_asm.py -rd ${out_dir}/asm_annotate/ -id ${sample_ID} \
-    #    -a1 ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap1.fa \
-    #    -a2 ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap2.fa
+    python3 enrich_DJ_read.py -fasta ${out_dir}/processed_fasta/${sample_ID}.split.fa \
+                              -out   ${out_dir}/processed_fasta/${sample_ID}.split.enrich.fa
+    
+    # hifiasm
+    echo "[AIRRsembly] Assemble with hifiasm trio-binning method..."
+    mkdir -p ${out_dir}/reassembly/${sample_ID}
+    /home/mlin77/scr4_blangme2/maojan/hifiasm/hifiasm -o ${out_dir}/reassembly/${sample_ID}/${sample_ID}.IGH.asm -t 8 \
+                                                      -1 ${parent_1_yak} \
+                                                      -2 ${parent_2_yak} \
+                                                      ${out_dir}/processed_fasta/${sample_ID}.split.enrich.fa
+    
+    awk '/^S/{print ">"$2;print $3}' ${out_dir}/reassembly/${sample_ID}/${sample_ID}.IGH.asm.dip.hap1.p_ctg.gfa > ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap1.fa
+    awk '/^S/{print ">"$2;print $3}' ${out_dir}/reassembly/${sample_ID}/${sample_ID}.IGH.asm.dip.hap2.p_ctg.gfa > ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap2.fa
+    
+    # IGLoo --genotype
+    echo "[AIRRsembly] IGLoo --genotype..."
+    python3 IGLoo_asm.py -rd ${out_dir}/asm_annotate/ -id ${sample_ID} \
+        -a1 ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap1.fa \
+        -a2 ${out_dir}/reassembly/${sample_ID}.IGH.asm.hap2.fa
 }
 export -f pacbio_reference_clip_preprocess 
 parallel pacbio_reference_clip_preprocess ::: \

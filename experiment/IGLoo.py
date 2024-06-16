@@ -5,9 +5,9 @@ import os
 import argparse
 
 # project modules
-from utils import check_program_install, catch_assert  
-import analyze_recombine
-import summarize_good_report
+from scripts.utils import check_program_install, catch_assert  
+from scripts import analyze_recombine
+from scripts import summarize_good_report
 
 
 
@@ -15,8 +15,6 @@ def align_and_index(ref, input_fasta, prefix):
     command = ' '.join(['minimap2', '-ax', 'map-hifi', ref, input_fasta, '|', 'samtools sort', '>', prefix+'.bam'])
     print(command)
     subprocess.call(command, shell=True)
-    #command = ' '.join(['samtools', 'sort', prefix+'.bam', '>', prefix+'.sorted.bam'])
-    #subprocess.call(command, shell=True)
     command = ' '.join(['samtools', 'index', prefix+'.bam'])
     print(command)
     subprocess.call(command, shell=True)
@@ -156,6 +154,10 @@ def main():
     subprocess.call("mkdir -p " + path_output, shell=True)
     prefix_out = path_output + '/' + sample_id
     if input_bam != None: # input_bam is specified
+        # make sure the input bam file is indexed
+        if os.path.isfile(input_bam+'.bai') == False:
+            command = ' '.join(['samtools', 'index', input_bam])
+            subprocess.call(command, shell=True)
         command = ['-bed', list_bed[0], '-bam', input_bam, '-out', prefix_out + '.1', '-name']
         analyze_recombine.main(command)
         if input_fasta == None:
