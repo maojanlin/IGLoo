@@ -1,5 +1,5 @@
 
-_Updated: Jun 16, 2024_
+_Updated: Nov 19, 2024_
 # IGLoo
 Analyzing the Immunoglobulin (IG) HiFi read data and assemblies derived from Lymphoblastoid cell lines (LCLs).
 
@@ -44,12 +44,12 @@ The ```IGLoo_ReAsm.py``` assembles the draft assembly with hifiasm.  The ```IGLo
 
 
 ## Examples
-Running the ```IGLoo --asm```
+### Running the ```IGLoo --asm```
 ```
 $ python3 IGLoo/IGLoo_asm.py -rd example/asm_out/ -id HG005 -a1 example/HG005.hprc.asm.1.IGH.fa -a2 example/HG005.hprc.asm.2.IGH.fa
 ```
 
-Running the ```IGLoo --read```
+### Running the ```IGLoo --read```
 ```
 $ python3 IGLoo/IGLoo_read.py -id HG005 \
                               -rd example/read_out/ \
@@ -61,8 +61,15 @@ $ python3 IGLoo/IGLoo_read.py -id HG005 \
                                   path_to_grch37.fa \
                                   path_to_chm13.fa
 ```
+The ```HG005.hprc.IGH.bam``` can be collected from a whole genome sequence alignment file with the following shell command:
+```
+bash IGLoo/scripts/fetch_IGH_from_grch38.sh HG005 ./HG005_aligned_GRCh38_winnowmap.sorted.bam ./example/
+```
+The final results will be generated in
+```example/read_out/pc_report/```, including ```HG005.split.rpt```, which summarizes overall recombination events and their frequencies (read counts);  ```HG005.split.detail.rpt```, which lists each event alongside its corresponding read name; and ```HG005.pie_chart.pdf```, which shows a pie chart of all recombination events.
 
-Running the ```IGLoo --ReAsm```
+
+### Running the ```IGLoo --ReAsm```
 ```
 python3 IGLoo/IGLoo_ReAsm.py -rd example/ReAsm_out/ -id HG005 \
                              -fa example/read_out2/processed_fasta/HG005.split.enrich.fa \
