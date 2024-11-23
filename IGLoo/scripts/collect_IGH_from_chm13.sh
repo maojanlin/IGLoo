@@ -1,4 +1,4 @@
-# usage: bash fetch_IGH_from_chm13.sh sample_ID input_bam output_path
+# usage: bash collect_IGH_from_chm13.sh sample_ID input_bam output_path
 
 IGH_locus="chr14:99739969-101161492"
 sample_ID=$1

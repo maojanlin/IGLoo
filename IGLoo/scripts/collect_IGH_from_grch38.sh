@@ -1,4 +1,4 @@
-# usage: bash fetch_IGH_from_grch38.sh sample_ID input_bam output_path
+# usage: bash collect_IGH_from_grch38.sh sample_ID input_bam output_path
 
 IGH_locus="chr14:105486937-106979845"
 IGH_alt_locus="chr14_KI270726v1_random:0-43739"
