@@ -17,7 +17,5 @@ samtools merge ${sample_ID}.IGH.bam \
                ${sample_ID}.IGH_alt.bam \
                ${sample_ID}.unmapped.bam
 samtools fastq ${sample_ID}.IGH.bam      >  ${sample_ID}.IGH.fq
-samtools fastq ${sample_ID}.IGH_alt.bam  >> ${sample_ID}.IGH.fq
-samtools fastq ${sample_ID}.unmapped.bam >> ${sample_ID}.IGH.fq
 
 cd -
