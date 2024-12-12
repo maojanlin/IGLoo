@@ -1,5 +1,5 @@
 
-_Updated: Nov 19, 2024_
+_Updated: Dec 12, 2024_
 # IGLoo
 Analyzing the Immunoglobulin (IG) HiFi read data and assemblies derived from Lymphoblastoid cell lines (LCLs).
 
@@ -12,6 +12,12 @@ Analyzing the Immunoglobulin (IG) HiFi read data and assemblies derived from Lym
 - gAIRR-suite=v0.2.0
 - MaSuRCA=v4.1.0
 - JASPER=v1.0.2
+### Python packages
+- numpy
+- pysam
+- pandas
+- matplotlib
+- seaborn
 
 
 ## Usage
@@ -65,8 +71,9 @@ The ```HG005.hprc.IGH.bam``` can be collected from a whole genome sequence align
 ```
 bash IGLoo/scripts/fetch_IGH_from_grch38.sh HG005 ./HG005_aligned_GRCh38_winnowmap.sorted.bam ./example/
 ```
-The final results will be generated in
-```example/read_out/pc_report/```, including ```HG005.split.rpt```, which summarizes overall recombination events and their frequencies (read counts);  ```HG005.split.detail.rpt```, which lists each event alongside its corresponding read name; and ```HG005.pie_chart.pdf```, which shows a pie chart of all recombination events.
+```IGLoo/scripts/fetch_IGH_from_grch38.sh``` and ```IGLoo/scripts/collect_IGH_from_chm13.sh``` are the utility scripts that can subset the full WGS alignments to only the IGH related alignments.
+
+The final results will be generated in ```example/read_out/pc_report/```, including ```HG005.split.rpt```, which summarizes overall recombination events and their frequencies (read counts);  ```HG005.split.detail.rpt```, which lists each event alongside its corresponding read name; and ```HG005.pie_chart.pdf```, which shows a pie chart of all recombination events.
 
 
 ### Running the ```IGLoo --ReAsm```
