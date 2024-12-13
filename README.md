@@ -69,9 +69,9 @@ $ python3 IGLoo/IGLoo_read.py -id HG005 \
 ```
 The ```HG005.hprc.IGH.bam``` can be collected from a whole genome sequence alignment file with the following shell command:
 ```
-bash IGLoo/scripts/fetch_IGH_from_grch38.sh HG005 ./HG005_aligned_GRCh38_winnowmap.sorted.bam ./example/
+bash IGLoo/scripts/collect_IGH_from_grch38.sh HG005 ./HG005_aligned_GRCh38_winnowmap.sorted.bam ./example/
 ```
-```IGLoo/scripts/fetch_IGH_from_grch38.sh``` and ```IGLoo/scripts/collect_IGH_from_chm13.sh``` are the utility scripts that can subset the full WGS alignments to only the IGH related alignments.
+```IGLoo/scripts/collect_IGH_from_grch38.sh``` and ```IGLoo/scripts/collect_IGH_from_chm13.sh``` are the utility scripts that can subset the full WGS alignments to only the IGH related alignments.
 
 The final results will be generated in ```example/read_out/pc_report/```, including ```HG005.split.rpt```, which summarizes overall recombination events and their frequencies (read counts);  ```HG005.split.detail.rpt```, which lists each event alongside its corresponding read name; and ```HG005.pie_chart.pdf```, which shows a pie chart of all recombination events.
 
