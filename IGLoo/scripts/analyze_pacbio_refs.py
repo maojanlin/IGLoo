@@ -154,7 +154,12 @@ def check_recomb_pair(pair_0, pair_1, list_gene_position, list_gene_name):
         elif gene_1[3] == "V" and abs(min_dist_1) < 300:
             return True, gene_0, gene_1, min_dist_0, min_dist_1
     elif abs(min_dist_0 - min_dist_1) < 50:
+        #print(True, gene_0, gene_1, min_dist_0, min_dist_1)
+        # accommodate the case of SV deletion between IGHD2-8 and IGHD2-2
+        if gene_0 == "IGHD2-8" and gene_1 == "IGHD2-2":
+            return False, gene_0, gene_1, min_dist_0, min_dist_1
         return True, gene_0, gene_1, min_dist_0, min_dist_1
+    #print(False, gene_0, gene_1, min_dist_0, min_dist_1)
     return False, gene_0, gene_1, min_dist_0, min_dist_1
 
 
