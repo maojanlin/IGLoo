@@ -10,12 +10,12 @@ import IGLoo_asm
 from scripts import ig_SV_typing
 from scripts import merge_personal_ref_2hap
 from scripts import merge_haplotypes
-from scripts import separate_reads
 from scripts import find_upperCase
 from scripts import find_coverage_region
 from scripts import mask_reassembly
-
-
+from scripts import split_read_from_yak
+from scripts import force_polish
+from scripts import mask_case_n_depth
 
 def main():
     parser = argparse.ArgumentParser(description="The 2nd module (bam/fasta) file analyzer of IGLoo.")
@@ -23,8 +23,8 @@ def main():
     parser.add_argument('-id', '--sample_id',  help="Sample ID ['sample_id'].", default="sample_id")
 
     parser.add_argument('-fa', '--preprocessed_fasta', help='input preprocessed file', required=True)
-    parser.add_argument('-p1', '--parent_1', help='input parent 1 file, should be BAM/FASTA')
-    parser.add_argument('-p2', '--parent_2', help='input parent 2 file, should be BAM/FASTA')
+    parser.add_argument('-p1', '--parent_1', help='input parent 1 file, should be yak format [result_dir/parent/pat.yak].')
+    parser.add_argument('-p2', '--parent_2', help='input parent 2 file, should be yak format [result_dir/parent/mat.yak].')
     parser.add_argument('-t', '--threads', help='number of threads to use', default=8)
     
     #parser.add_argument('--force', help="running the program without checking prerequisite programs.", action='store_true')
@@ -37,6 +37,10 @@ def main():
     input_fasta = args.preprocessed_fasta
     parent_1 = args.parent_1
     parent_2 = args.parent_2
+    if parent_1 == None:
+        parent_1 = out_dir+'/parent/pat.yak'
+    if parent_2 == None:
+        parent_2 = out_dir+'/parent/mat.yak'
     threads = args.threads
 
     
@@ -48,7 +52,8 @@ def main():
                            "samtools", \
                            "minimap2", \
                            "jasper.sh", \
-                           "jellyfish"])
+                           "jellyfish", \
+                           "yak"])
 
     # Prepare output directory
     subprocess.call("mkdir -p " + out_dir+'/ref_guide/', shell=True)
@@ -62,8 +67,9 @@ def main():
     ig_SV_typing.main(command)
     
     # Run merge_personal_ref_2hap
-    command = ['-base', 'IGLoo/materials/personalized_ref/referece_base.fa', \
-               '-alt',  'IGLoo/materials/personalized_ref/referece_del.fa', \
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    command = ['-base', os.path.join(script_dir, 'materials/personalized_ref/referece_base.fa'), \
+               '-alt',  os.path.join(script_dir, 'materials/personalized_ref/referece_del.fa'), \
                '-csv1', out_dir+'/reassembly/'+sample_id+'/'+sample_id+'.IGH.asm.hap1.fa.rec.csv', \
                '-csv2', out_dir+'/reassembly/'+sample_id+'/'+sample_id+'.IGH.asm.hap2.fa.rec.csv', \
                '-out1', out_dir+'/reassembly/'+sample_id+'/'+sample_id+'.IGH.asm.hap1.ref.fa', \
@@ -107,72 +113,116 @@ def main():
     os.chdir('draft_polish_H1')
     command = ' '.join(['final_polish.sh', '14', '../'+ref_pat, '../'+ref_pat, '../'+arrange_contigs_1])
     subprocess.call(command, shell=True)
+    #check if the draft_polish_H1/threshold.txt exists
+    if os.path.exists('threshold.txt') == False:
+        command = ' '.join(['echo', '2', '>', 'threshold.txt'])
+        subprocess.call(command, shell=True)
 
     os.chdir('../draft_polish_H2')
     command = ' '.join(['final_polish.sh', '14', '../'+ref_mat, '../'+ref_mat, '../'+arrange_contigs_2])
     subprocess.call(command, shell=True)
+    #check if the draft_polish_H2/threshold.txt exists
+    if os.path.exists('threshold.txt') == False:
+        command = ' '.join(['echo', '2', '>', 'threshold.txt'])
+        subprocess.call(command, shell=True)
     
+
     # separate reads
-    os.chdir('../')
-
-    command = ['-f1', 'draft_polish_H1/14.dir/14.all.polished.fa', '-f2', 'draft_polish_H2/14.dir/14.all.polished.fa', '-out', 'draft_polish.fa']
-    merge_haplotypes.main(command)
-    command = ' '.join(['minimap2 -ax map-pb draft_polish.fa ' + old_dir+'/'+input_fasta + ' | \
-                        samtools sort -o '+sample_id+'.draft.realign.bam'])
+    os.chdir(old_dir)
+    command = ' '.join(['yak', 'triobin', parent_1, parent_2, input_fasta, '>', out_dir+'/ref_guide/'+sample_id+'.triobin.log'])
     subprocess.call(command, shell=True)
-    command = ' '.join(['samtools index', sample_id+'.draft.realign.bam'])
-    subprocess.call(command, shell=True)
-    command = ['-bam', sample_id+'.draft.realign.bam', '-fasta', old_dir+'/'+input_fasta, '-out', sample_id+'.separate.read']
-    separate_reads.main(command)
-
+    command = ['--input_fasta', input_fasta, '--input_yak', out_dir+'/ref_guide/'+sample_id+'.triobin.log', '--output', out_dir+'/ref_guide/'+sample_id+'.separate.read']
+    split_read_from_yak.main(command)
+    
     
     # Run Jasper for final polishing
-    os.chdir('draft_polish_H1')
+    os.chdir(out_dir+'/ref_guide/draft_polish_H1')
     command = ' '.join(['jasper.sh', '-t', '16', '-b', '800000000', '-a', '14.dir/14.all.polished.fa', \
-                        '-r', '../'+sample_id+'.separate.read.H1.fa', '-k', '25', '-p', '3'])
+                        '-r', '../'+sample_id+'.separate.read.H1.fasta', '-k', '25', '-p', '3'])
     subprocess.call(command, shell=True)
 
     os.chdir('../draft_polish_H2')
     command = ' '.join(['jasper.sh', '-t', '16', '-b', '800000000', '-a', '14.dir/14.all.polished.fa', \
-                        '-r', '../'+sample_id+'.separate.read.H2.fa', '-k', '25', '-p', '3'])
+                        '-r', '../'+sample_id+'.separate.read.H2.fasta', '-k', '25', '-p', '3'])
     subprocess.call(command, shell=True)
     
     
     # Final masking
     os.chdir('../')
 
-    command = ['-f1', 'draft_polish_H1/14.all.polished.fa.polished.fasta', \
-               '-f2', 'draft_polish_H2/14.all.polished.fa.polished.fasta', \
-               '-out', 'final_polish.fa']
-    merge_haplotypes.main(command)
-    command = ' '.join(['minimap2 -ax map-pb final_polish.fa ' + old_dir+'/'+input_fasta + ' | \
-              samtools sort -o '+sample_id+'.final.realign.bam'])
+    command = ' '.join(['cp', 'draft_polish_H1/14.all.polished.fa.polished.fasta', './'+sample_id+'.polished_H1.fa'])
     subprocess.call(command, shell=True)
-    command = ' '.join(['samtools index', sample_id+'.final.realign.bam'])
+    command = ' '.join(['cp', 'draft_polish_H2/14.all.polished.fa.polished.fasta', './'+sample_id+'.polished_H2.fa'])
     subprocess.call(command, shell=True)
 
-    command = ' '.join(['mkdir -p ../IGLoo_assembly'])
+    # read coverage information
+    command = ' '.join(['minimap2 -ax map-pb '+sample_id+'.polished_H1.fa '+sample_id+'.separate.read.H1.fasta | \
+                        samtools sort -o '+sample_id+'.polished.realign.H1.bam'])
     subprocess.call(command, shell=True)
+    command = ' '.join(['minimap2 -ax map-pb '+sample_id+'.polished_H2.fa '+sample_id+'.separate.read.H2.fasta | \
+                        samtools sort -o '+sample_id+'.polished.realign.H2.bam'])
+    subprocess.call(command, shell=True)
+    command = ' '.join(['samtools index', sample_id+'.polished.realign.H1.bam'])
+    subprocess.call(command, shell=True)
+    command = ' '.join(['samtools index', sample_id+'.polished.realign.H2.bam'])
+    subprocess.call(command, shell=True)
+    command = ' '.join(['samtools mpileup -aa -d 1000 -f '+sample_id+'.polished_H1.fa '+sample_id+'.polished.realign.H1.bam > '+sample_id+'.polished.realign.H1.mpileup'])
+    subprocess.call(command, shell=True)
+    command = ' '.join(['samtools mpileup -aa -d 1000 -f '+sample_id+'.polished_H2.fa '+sample_id+'.polished.realign.H2.bam > '+sample_id+'.polished.realign.H2.mpileup'])
+    subprocess.call(command, shell=True)
+    
+    # force polish
+    command = ['--mpileup', sample_id+'.polished.realign.H1.mpileup', '--genome', sample_id+'.polished_H1.fa', '--out', sample_id+'.force_polished_H1.fa']
+    force_polish.main(command)
+    command = ['--mpileup', sample_id+'.polished.realign.H2.mpileup', '--genome', sample_id+'.polished_H2.fa', '--out', sample_id+'.force_polished_H2.fa']
+    force_polish.main(command)
 
-    command = ['-fasta', 'final_polish.fa', '-out', 'final_polish.upperCase.bed']
-    find_upperCase.main(command)
-    command = ' '.join(['samtools depth', sample_id+'.final.realign.bam', '-a -g 0x100 -J > '+sample_id+'.realign.rd.log'])
+    # Then perform cropping based on realignment depth and upper case region
+    command = ' '.join(['minimap2 -ax map-pb '+sample_id+'.force_polished_H1.fa '+sample_id+'.separate.read.H1.fasta | \
+                        samtools sort -o '+sample_id+'.force.realign.H1.bam'])
     subprocess.call(command, shell=True)
-    command = ['-rd', sample_id+'.realign.rd.log', '-out', sample_id+'.realign.rd.bed']
+    command = ' '.join(['minimap2 -ax map-pb '+sample_id+'.force_polished_H2.fa '+sample_id+'.separate.read.H2.fasta | \
+                        samtools sort -o '+sample_id+'.force.realign.H2.bam'])
+    subprocess.call(command, shell=True)
+    
+    command = ' '.join(['samtools depth '+sample_id+'.force.realign.H1.bam -a -g 0x100 -J > '+sample_id+'.force.realign.rd.H1.log'])
+    subprocess.call(command, shell=True)
+    command = ' '.join(['samtools depth '+sample_id+'.force.realign.H2.bam -a -g 0x100 -J > '+sample_id+'.force.realign.rd.H2.log'])
+    subprocess.call(command, shell=True)
+    command = ['-rd', sample_id+'.force.realign.rd.H1.log', '-out', sample_id+'.force.realign.rd.H1.bed']
     find_coverage_region.main(command)
-    command = ['-rd', sample_id+'.realign.rd.bed', '-up', 'final_polish.upperCase.bed', '-fa', 'final_polish.fa', '-out', 'final_polish.mask']
-    mask_reassembly.main(command)
-    command = ' '.join(['cp final_polish.mask.1.fa ../IGLoo_assembly/'+sample_id+'.mask.1.fa'])
-    subprocess.call(command, shell=True)
-    command = ' '.join(['cp final_polish.mask.2.fa ../IGLoo_assembly/'+sample_id+'.mask.2.fa'])
-    subprocess.call(command, shell=True)
+    command = ['-rd', sample_id+'.force.realign.rd.H2.log', '-out', sample_id+'.force.realign.rd.H2.bed']
+    find_coverage_region.main(command)
 
+
+    # find upper case region
+    command = ['-fasta', sample_id+'.force_polished_H1.fa', '-out', sample_id+'.force.H1.upperCase.bed']
+    find_upperCase.main(command)
+    command = ['-fasta', sample_id+'.force_polished_H2.fa', '-out', sample_id+'.force.H2.upperCase.bed']
+    find_upperCase.main(command)
+
+    # crop the assembly
+    command = ['-rd', sample_id+'.force.realign.rd.H1.bed', '-up', sample_id+'.force.H1.upperCase.bed', \
+                        '-fa', sample_id+'.force_polished_H1.fa', '-out', sample_id+'.force_polished_H1.mask.fa']
+    mask_case_n_depth.main(command)
+    command = ['-rd', sample_id+'.force.realign.rd.H2.bed', '-up', sample_id+'.force.H2.upperCase.bed', \
+                        '-fa', sample_id+'.force_polished_H2.fa', '-out', sample_id+'.force_polished_H2.mask.fa']
+    mask_case_n_depth.main(command)
+
+    # make the mask assembly directory
+    subprocess.call("mkdir -p " + old_dir+'/'+out_dir+'/mask_assembly/', shell=True)
+
+    command = ' '.join(['cp '+sample_id+'.force_polished_H1.mask.fa ../mask_assembly/'+sample_id+'.mask.1.fa'])
+    subprocess.call(command, shell=True)
+    command = ' '.join(['cp '+sample_id+'.force_polished_H2.mask.fa ../mask_assembly/'+sample_id+'.mask.2.fa'])
+    subprocess.call(command, shell=True)
 
     ## Run IGLoo_asm annotation for the draft assembly
-    #command = ['-rd', out_dir+'/asm_annotate/', '-id', sample_id, \
-    #           '-a1', out_dir+'/reassembly/'+sample_id+'/'+sample_id+'.IGH.asm.hap1.fa', \
-    #           '-a2', out_dir+'/reassembly/'+sample_id+'/'+sample_id+'.IGH.asm.hap2.fa']
-    #IGLoo_asm.main(command)
+    os.chdir(old_dir)
+    command = ['-rd', out_dir+'/mask_annotate/', '-id', sample_id, \
+               '-a1', out_dir+'/mask_assembly/'+sample_id+'.mask.1.fa', \
+               '-a2', out_dir+'/mask_assembly/'+sample_id+'.mask.2.fa']
+    IGLoo_asm.main(command)
         
     
     
