@@ -12,8 +12,11 @@ from scripts import plot_events
 
 
 
-def align_and_index(ref, input_fasta, prefix):
-    command = ' '.join(['minimap2', '-ax', 'map-hifi', ref, input_fasta, '|', 'samtools sort', '>', prefix+'.bam'])
+def align_and_index(ref, input_fasta, prefix, flag_nanopore):
+    if flag_nanopore:
+        command = ' '.join(['minimap2', '-ax', 'map-ont', ref, input_fasta, '|', 'samtools sort', '>', prefix+'.bam'])
+    else:
+        command = ' '.join(['minimap2', '-ax', 'map-hifi', ref, input_fasta, '|', 'samtools sort', '>', prefix+'.bam'])
     print(command)
     subprocess.call(command, shell=True)
     command = ' '.join(['samtools', 'index', prefix+'.bam'])
@@ -31,6 +34,7 @@ def main():
     parser.add_argument('-lb', '--list_bed', help='list of annotated bed files for references', nargs='+')
     parser.add_argument('-f', '--input_fasta', help='input unaligned sequence (.fa/.fq) file for analysis')
     parser.add_argument('-b', '--input_bam', help='input alignment file (.bam) for analysis')
+    parser.add_argument('-ont', '--nanopore', action='store_true', help='flag for nanopore data')
     args = parser.parse_args()
     
     ###### Parameters for IGLoo
@@ -41,6 +45,7 @@ def main():
     list_bed = args.list_bed
     input_fasta = args.input_fasta
     input_bam   = args.input_bam
+    flag_nanopore = args.nanopore
 
     try:
         assert input_fasta != None or input_bam != None
@@ -57,7 +62,7 @@ def main():
     subprocess.call("mkdir -p " + path_output, shell=True)
     prefix_out = path_output + '/' + sample_id
     if input_bam == None: # Input is a fasta file
-        align_and_index(list_ref[0], input_fasta, prefix_out+'.0')
+        align_and_index(list_ref[0], input_fasta, prefix_out+'.0', flag_nanopore)
         input_bam = prefix_out + '.0.bam'
     if os.path.isfile(input_bam+'.bai') == False: # make sure there is a bam file
         command = ' '.join(['samtools', 'index', input_bam])
@@ -71,7 +76,7 @@ def main():
 
     # Alignment process
     for idx, ref in enumerate(list_ref):
-        align_and_index(ref, prefix_out + '.0.fastq', prefix_out+'.'+str(idx+1))
+        align_and_index(ref, prefix_out + '.0.fastq', prefix_out+'.'+str(idx+1), flag_nanopore)
 
     # make directory for processed fasta files
     command = 'mkdir -p ' + path_output + '/processed_fasta'
