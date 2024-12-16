@@ -85,7 +85,7 @@ python3 IGLoo/IGLoo_ReAsm.py -rd example/ReAsm_out/ -id HG005 \
 
 export PYTHONPATH=/home/user/lib/python3.9
 python3 IGLoo/IGLoo_ReAsm2.py -rd example/ReAsm_out/ -id HG005 \
-                              -fa example/read_out2/processed_fasta/HG005.split.enrich.fa
+                              -fa example/read_out2/processed_fasta/HG005.split.fa
 ```
 
 Note that $PYTHONPATH needs to be specified to run JASPER and Jellyfish.
