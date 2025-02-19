@@ -4,9 +4,17 @@ import sys
 import os
 import argparse
 
+# Enable local imports if run directly
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 # project modules
-from scripts.utils import check_program_install, catch_assert  
-import IGLoo_asm
+try :
+    from IGLoo.scripts.utils import check_program_install, catch_assert  
+    import IGLoo.IGLoo_asm
+except ImportError:
+    from scripts.utils import check_program_install, catch_assert  
+    import IGLoo_asm
 
 
 
