@@ -43,7 +43,7 @@ def align_and_index(ref, input_fasta, prefix, flag_nanopore):
 
 
 
-def main():
+def main(arguments=None):
     parser = argparse.ArgumentParser(description="The 2nd module (bam/fasta) file analyzer of IGLoo.")
     parser.add_argument('-rd', '--result_dir', help="Path to output directory ['result_dir'].", default="result_dir")
     parser.add_argument('-id', '--sample_id', help="Sample ID ['sample_id'].", default="sample_id")
@@ -53,7 +53,10 @@ def main():
     parser.add_argument('-f', '--input_fasta', help='input unaligned sequence (.fa/.fq) file for analysis')
     parser.add_argument('-b', '--input_bam', help='input alignment file (.bam) for analysis')
     parser.add_argument('-ont', '--nanopore', action='store_true', help='flag for nanopore data')
-    args = parser.parse_args()
+    if arguments is None:
+        args = parser.parse_args()
+    else:
+        args = arguments
     
     ###### Parameters for IGLoo
     path_output = args.result_dir

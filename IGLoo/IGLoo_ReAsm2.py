@@ -4,43 +4,55 @@ import sys
 import os
 import argparse
 
-# project modules
-from scripts.utils import check_program_install, catch_assert  
-import IGLoo_asm
-from scripts import ig_SV_typing
-from scripts import merge_personal_ref_2hap
-from scripts import merge_haplotypes
-from scripts import find_upperCase
-from scripts import find_coverage_region
-from scripts import mask_reassembly
-from scripts import split_read_from_yak
-from scripts import force_polish
-from scripts import mask_case_n_depth
+# project modulesif __name__ == "__main__" and __package__ is None:
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-def main():
+# project modules
+try :
+    from IGLoo.scripts.utils import check_program_install, catch_assert  
+    import IGLoo.IGLoo_asm as IGLoo_asm
+    from IGLoo.scripts import ig_SV_typing
+    from IGLoo.scripts import merge_personal_ref_2hap
+    from IGLoo.scripts import find_upperCase
+    from IGLoo.scripts import find_coverage_region
+    from IGLoo.scripts import split_read_from_yak
+    from IGLoo.scripts import force_polish
+    from IGLoo.scripts import mask_case_n_depth
+except ImportError:
+    from scripts.utils import check_program_install, catch_assert  
+    import IGLoo_asm
+    from scripts import ig_SV_typing
+    from scripts import merge_personal_ref_2hap
+    from scripts import find_upperCase
+    from scripts import find_coverage_region
+    from scripts import split_read_from_yak
+    from scripts import force_polish
+    from scripts import mask_case_n_depth
+
+def main(arguments=None):
     parser = argparse.ArgumentParser(description="The 2nd module (bam/fasta) file analyzer of IGLoo.")
     parser.add_argument('-rd', '--result_dir', help="Path to output directory ['result_dir'].", default="result_dir")
     parser.add_argument('-id', '--sample_id',  help="Sample ID ['sample_id'].", default="sample_id")
 
     parser.add_argument('-fa', '--preprocessed_fasta', help='input preprocessed file', required=True)
-    parser.add_argument('-p1', '--parent_1', help='input parent 1 file, should be yak format [result_dir/parent/pat.yak].')
-    parser.add_argument('-p2', '--parent_2', help='input parent 2 file, should be yak format [result_dir/parent/mat.yak].')
+    parser.add_argument('-p1', '--parent_yak_1', help='input parent 1 file, should be yak format [result_dir/parent/pat.yak].')
+    parser.add_argument('-p2', '--parent_yak_2', help='input parent 2 file, should be yak format [result_dir/parent/mat.yak].')
     parser.add_argument('-t', '--threads', help='number of threads to use', default=8)
     
     #parser.add_argument('--force', help="running the program without checking prerequisite programs.", action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args() if arguments is None else arguments
     
     ###### Parameters for IGLoo
     out_dir = args.result_dir
     sample_id  = args.sample_id
     
     input_fasta = args.preprocessed_fasta
-    parent_1 = args.parent_1
-    parent_2 = args.parent_2
-    if parent_1 == None:
-        parent_1 = out_dir+'/parent/pat.yak'
-    if parent_2 == None:
-        parent_2 = out_dir+'/parent/mat.yak'
+    parent_yak_1 = args.parent_yak_1
+    parent_yak_2 = args.parent_yak_2
+    if parent_yak_1 == None:
+        parent_yak_1 = out_dir+'/parent/pat.yak'
+    if parent_yak_2 == None:
+        parent_yak_2 = out_dir+'/parent/mat.yak'
     threads = args.threads
 
     
@@ -129,7 +141,7 @@ def main():
 
     # separate reads
     os.chdir(old_dir)
-    command = ' '.join(['yak', 'triobin', parent_1, parent_2, input_fasta, '>', out_dir+'/ref_guide/'+sample_id+'.triobin.log'])
+    command = ' '.join(['yak', 'triobin', parent_yak_1, parent_yak_2, input_fasta, '>', out_dir+'/ref_guide/'+sample_id+'.triobin.log'])
     subprocess.call(command, shell=True)
     command = ['--input_fasta', input_fasta, '--input_yak', out_dir+'/ref_guide/'+sample_id+'.triobin.log', '--output', out_dir+'/ref_guide/'+sample_id+'.separate.read']
     split_read_from_yak.main(command)
@@ -219,10 +231,14 @@ def main():
 
     ## Run IGLoo_asm annotation for the draft assembly
     os.chdir(old_dir)
-    command = ['-rd', out_dir+'/mask_annotate/', '-id', sample_id, \
-               '-a1', out_dir+'/mask_assembly/'+sample_id+'.mask.1.fa', \
-               '-a2', out_dir+'/mask_assembly/'+sample_id+'.mask.2.fa']
-    IGLoo_asm.main(command)
+    #command = ['-rd', out_dir+'/mask_annotate/', '-id', sample_id, \
+    #           '-a1', out_dir+'/mask_assembly/'+sample_id+'.mask.1.fa', \
+    #            '-a2', out_dir+'/mask_assembly/'+sample_id+'.mask.2.fa']
+    input_arguments = argparse.Namespace(result_dir=out_dir+'/mask_annotate/', \
+                                         sample_id=sample_id, \
+                                         assembly_1=out_dir+'/mask_assembly/'+sample_id+'.mask.1.fa', \
+                                         assembly_2=out_dir+'/mask_assembly/'+sample_id+'.mask.2.fa')
+    IGLoo_asm.main(input_arguments)
         
     
     

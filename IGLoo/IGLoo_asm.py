@@ -29,7 +29,8 @@ def main(arguments=None):
 
     parser.add_argument('-a1', '--assembly_1', help='input assembly H1 file (.fa) for analysis', required=True)
     parser.add_argument('-a2', '--assembly_2', help='input assembly H2 file (.fa) for analysis')
-    args = parser.parse_args(arguments)
+    args = parser.parse_args() if arguments is None else arguments
+
     
 
     ###### Parameters for IGLoo

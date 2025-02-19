@@ -33,7 +33,7 @@ setup(
     'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
   ],
-  entry_points={"console_scripts": ["IGLoo_read = IGLoo.IGLoo_read:main","IGLoo_asm = IGLoo.IGLoo_asm:main", "IGLoo_reasm = IGLoo.IGLoo_ReAsm:main"],},
+  entry_points={"console_scripts": ["IGLoo = IGLoo.IGLoo:main"],},
 )
 
 
