@@ -20,7 +20,7 @@ setup(
           'scipy'
       ],
   include_package_data=True,
-  package_data={'IGLoo': ['materials/*', 'materials/gene_annotations/*', 'materials/gene_annotations/GRCh38/*', 'materials/personalized_ref/*']},
+  package_data={'IGLoo': ['materials/*', 'materials/gene_annotations/*', 'materials/gene_annotations/GRCh38/*', 'materials/personalized_ref/*', 'scripts/*.sh']},
   zip_safe = False,
   classifiers=[
     'Development Status :: 3 - Alpha',

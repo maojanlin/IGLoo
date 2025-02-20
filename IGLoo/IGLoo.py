@@ -4,6 +4,7 @@ import argparse
 import sys
 import os
 import logging
+import subprocess
 from datetime import datetime
 import importlib.util
 
@@ -53,9 +54,10 @@ def main():
     
     # Main operation mode arguments
     mode_group = parser.add_mutually_exclusive_group(required=True)
-    mode_group.add_argument('--all', action='store_true', help='Run the complete pipeline in sequence')
-    mode_group.add_argument('--read', action='store_true', help='Run read analysis module')
+    mode_group.add_argument('--all', action='store_true', help='Run the complete assembly pipeline in sequence')
     mode_group.add_argument('--asm', action='store_true', help='Run assembly analysis module')
+    mode_group.add_argument('--filter', action='store_true', help='Filtering IGH related reads')
+    mode_group.add_argument('--read', action='store_true', help='Run read analysis module')
     mode_group.add_argument('--denovo', action='store_true', help='Run de novo assembly module')
     mode_group.add_argument('--refguide', action='store_true', help='Run reference-guided assembly module')
 
@@ -65,16 +67,20 @@ def main():
     parser.add_argument('-t', '--threads', type=int, default=16, help='Number of threads')
 
     # Module-specific arguments
+    # Assembly module
+    parser.add_argument('-a1', '--assembly_1', help='input assembly haplotype 1 file (.fa) for analysis')#, required=True)
+    parser.add_argument('-a2', '--assembly_2', help='input assembly haplotype 2 file (.fa) for analysis')
+
+    # Filtering module
+    parser.add_argument('-ref', '--ref_genome', help='reference genome for filtering [GRCh38/CHM13]', default="GRCh38")
+    parser.add_argument('--unmap', action='store_true', help='include unmapped reads in the filterred bam file')
+
     # Read module
     parser.add_argument('-lr', '--list_ref', help='list of reference genome for analysis', nargs='+')
     parser.add_argument('-lb', '--list_bed', help='list of annotated bed files for references', nargs='+')
     parser.add_argument('-f', '--input_fasta', help='input unaligned sequence (.fa/.fq) file for analysis')
     parser.add_argument('-b', '--input_bam', help='input alignment file (.bam) for analysis')
     parser.add_argument('-ont', '--nanopore', action='store_true', help='flag for nanopore data')
-
-    # Assembly module
-    parser.add_argument('-a1', '--assembly_1', help='input assembly haplotype 1 file (.fa) for analysis')#, required=True)
-    parser.add_argument('-a2', '--assembly_2', help='input assembly haplotype 2 file (.fa) for analysis')
 
     # De novo & Reference-guided assembly module
     parser.add_argument('-fa', '--preprocessed_fasta', help='input preprocessed file')#, required=True) # should be --read module output
@@ -101,7 +107,6 @@ def main():
                 ("Read Analysis", "IGLoo_read"),
                 ("De novo Assembly", "IGLoo_ReAsm"),
                 ("Reference-guided Assembly", "IGLoo_ReAsm2"),
-                ("Assembly Analysis", "IGLoo_asm")
             ]
             
             for step_name, module_name in steps:
@@ -112,7 +117,22 @@ def main():
                 success = True
         else:
             # Run individual modules
-            if args.read:
+            if args.filter:
+                assert args.input_bam is not None, "input bam file is required for filtering"
+                assert args.ref_genome in ["GRCh38", "CHM13"], "reference genome should be either GRCh38 or CHM13"
+                try:
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    if args.ref_genome == "GRCh38":
+                        module_path = os.path.join(script_dir, f"scripts/collect_IGH_from_grch38.sh")
+                    else:
+                        module_path = os.path.join(script_dir, f"scripts/collect_IGH_from_chm13.sh")
+                    str_unmap = "--unmap" if args.unmap else ""
+                    subprocess.run(' '.join(['bash', module_path, args.sample_id, args.input_bam, args.result_dir, str_unmap]), shell=True)
+                    success = True
+                except Exception as e:
+                    logger.error(f"Error in Filtering: {str(e)}", exc_info=True)
+                    error_msg = f"Filtering failed: {str(e)}"
+            elif args.read:
                 success = run_pipeline_step("Read Analysis", "IGLoo_read", args, logger)
                 if not success: error_msg = "Read Analysis failed"
             elif args.asm:
