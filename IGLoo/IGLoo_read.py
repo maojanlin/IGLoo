@@ -4,11 +4,29 @@ import sys
 import os
 import argparse
 
-# project modules
-from scripts.utils import check_program_install, catch_assert  
-from scripts import analyze_pacbio_refs
-from scripts import enrich_DJ_read
-from scripts import plot_events
+# Enable local imports if run directly
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+# project modules 
+try:
+    from IGLoo.scripts.utils import check_program_install, catch_assert  
+    from IGLoo.scripts import analyze_pacbio_refs
+    from IGLoo.scripts import enrich_DJ_read
+    from IGLoo.scripts import plot_events
+except ImportError:
+    # Use relative imports for local usage
+    from scripts.utils import check_program_install, catch_assert  
+    from scripts import analyze_pacbio_refs
+    from scripts import enrich_DJ_read
+    from scripts import plot_events
+
+
+## project modules
+#from IGLoo.scripts.utils import check_program_install, catch_assert  
+#from IGLoo.scripts import analyze_pacbio_refs
+#from IGLoo.scripts import enrich_DJ_read
+#from IGLoo.scripts import plot_events
 
 
 
@@ -25,7 +43,7 @@ def align_and_index(ref, input_fasta, prefix, flag_nanopore):
 
 
 
-def main():
+def main(arguments=None):
     parser = argparse.ArgumentParser(description="The 2nd module (bam/fasta) file analyzer of IGLoo.")
     parser.add_argument('-rd', '--result_dir', help="Path to output directory ['result_dir'].", default="result_dir")
     parser.add_argument('-id', '--sample_id', help="Sample ID ['sample_id'].", default="sample_id")
@@ -35,7 +53,10 @@ def main():
     parser.add_argument('-f', '--input_fasta', help='input unaligned sequence (.fa/.fq) file for analysis')
     parser.add_argument('-b', '--input_bam', help='input alignment file (.bam) for analysis')
     parser.add_argument('-ont', '--nanopore', action='store_true', help='flag for nanopore data')
-    args = parser.parse_args()
+    if arguments is None:
+        args = parser.parse_args()
+    else:
+        args = arguments
     
     ###### Parameters for IGLoo
     path_output = args.result_dir

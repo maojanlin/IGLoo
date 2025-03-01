@@ -1,5 +1,5 @@
 import argparse
-from scripts.analyze_pacbio_refs import read_fasta
+from .analyze_pacbio_refs import read_fasta
 
 
 

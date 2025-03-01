@@ -4,11 +4,21 @@ import sys
 import os
 import argparse
 
+# Enable local imports if run directly
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 # project modules
-from scripts.utils import check_program_install, catch_assert  
-from scripts import contig_gene_table
-from scripts import count_gene_and_allele
-from scripts import plot_asm
+try:
+    from IGLoo.scripts.utils import check_program_install, catch_assert  
+    from IGLoo.scripts import contig_gene_table
+    from IGLoo.scripts import count_gene_and_allele
+    from IGLoo.scripts import plot_asm
+except ImportError:
+    from scripts.utils import check_program_install, catch_assert  
+    from scripts import contig_gene_table
+    from scripts import count_gene_and_allele
+    from scripts import plot_asm
 
 
 
@@ -19,7 +29,8 @@ def main(arguments=None):
 
     parser.add_argument('-a1', '--assembly_1', help='input assembly H1 file (.fa) for analysis', required=True)
     parser.add_argument('-a2', '--assembly_2', help='input assembly H2 file (.fa) for analysis')
-    args = parser.parse_args(arguments)
+    args = parser.parse_args() if arguments is None else arguments
+
     
 
     ###### Parameters for IGLoo
