@@ -1,6 +1,6 @@
 from distutils.core import setup
 setup(
-  name = 'IGLoo',
+  name = 'bio-IGLoo',
   packages = ['IGLoo', 'IGLoo.scripts'],#, 'IGLoo.materials', 'IGLoo.materials.personalized_ref', 'IGLoo.materials.gene_annotations', 'IGLoo.materials.gene_annotations.GRCh38'],
   version = '0.1.0',
   license='MIT',
