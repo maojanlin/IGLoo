@@ -1,5 +1,8 @@
 
-_Updated: Feb 28, 2025_
+_Updated: Mar 28, 2025_
+
+[![DOI](https://zenodo.org/badge/631047974.svg)](https://doi.org/10.5281/zenodo.15048412)
+
 # IGLoo
 Analyzing the Immunoglobulin (IG) HiFi read data and assemblies derived from Lymphoblastoid cell lines (LCLs).
 
